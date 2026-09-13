@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AuthorLedger</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="wordmark">
+    <span class="wordmark-mark">§</span>
+    <h1>AuthorLedger</h1>
+  </div>
+  <p class="tagline">An honest paper trail for AI use in your books.</p>
+  <div id="llm-indicator" class="llm-indicator" title="">Claude features: checking…</div>
+</header>
+
+<div class="app-body">
+
+  <aside class="shelf" id="shelf">
+    <h2 class="shelf-heading">Your books</h2>
+    <ul class="book-list" id="book-list"></ul>
+    <form id="new-book-form" class="new-book-form">
+      <input type="text" id="new-book-title" placeholder="New book title…" required>
+      <button type="submit">Add to shelf</button>
+    </form>
+    <a href="/api/backup" class="backup-link" download="authorledger-backup.db">Download full backup (.db)</a>
+  </aside>
+
+  <main class="desk" id="desk">
+    <div class="empty-desk" id="empty-desk">
+      <p class="empty-lede">Pick a book from the shelf, or start a new one.</p>
+      <ol class="onboarding-steps">
+        <li>Create a book for each manuscript you're tracking.</li>
+        <li>Add a chapter, paste or type its text.</li>
+        <li>Classify it honestly: human-written, AI-assisted, or AI-generated.</li>
+        <li>Export a compliance report whenever KDP asks.</li>
+      </ol>
+    </div>
+
+    <div class="book-view" id="book-view" hidden>
+      <div class="book-view-header">
+        <h2 id="book-title"></h2>
+        <div class="book-actions">
+          <button id="export-report-btn" class="btn btn-stamp">Export compliance report</button>
+          <button id="view-audit-btn" class="btn btn-ghost">View audit trail</button>
+          <button id="delete-book-btn" class="btn btn-danger-ghost">Delete book</button>
+        </div>
+      </div>
+
+      <div class="tally-strip" id="tally-strip"></div>
+
+      <div class="chapters-block">
+        <div class="chapters-block-header">
+          <h3>Chapters</h3>
+        </div>
+        <table class="ledger-table" id="chapter-table">
+          <thead>
+            <tr>
+              <th>Chapter</th>
+              <th>Classification</th>
+              <th class="num">Words</th>
+              <th>Last touched</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="chapter-rows"></tbody>
+        </table>
+        <form id="new-chapter-form" class="new-chapter-form">
+          <input type="text" id="new-chapter-title" placeholder="New chapter title…" required>
+          <button type="submit">Add chapter</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="chapter-view" id="chapter-view" hidden>
+      <button id="back-to-book" class="btn btn-ghost back-btn">&larr; Back to book</button>
+      <h2 id="chapter-title"></h2>
+
+      <textarea id="chapter-text" rows="14" placeholder="Paste or write this chapter's text here…"></textarea>
+      <div class="chapter-text-actions">
+        <span id="save-status" class="save-status"></span>
+        <button id="save-text-btn" class="btn btn-primary">Save text</button>
+      </div>
+
+      <section class="classify-block">
+        <h3>How was this chapter written? Be honest — only you know.</h3>
+        <div class="stamp-choices" id="stamp-choices">
+          <button class="stamp-choice" data-value="human">Human&#8209;written</button>
+          <button class="stamp-choice" data-value="ai_assisted">AI&#8209;assisted</button>
+          <button class="stamp-choice" data-value="ai_generated">AI&#8209;generated</button>
+        </div>
+        <input type="text" id="classify-note" placeholder="Optional note (e.g. which tool, what it helped with)">
+      </section>
+
+      <section class="pattern-block">
+        <div class="pattern-block-header">
+          <h3>Writing pattern report</h3>
+          <button id="run-pattern-btn" class="btn btn-ghost">Run report</button>
+        </div>
+        <p class="pattern-disclaimer">
+          This is a reflection aid based on simple writing-pattern statistics —
+          sentence rhythm, word variety, a few overused phrases. It is <strong>not</strong>
+          an AI detector and proves nothing about how this text was written.
+          Your honest answer above is what actually matters for disclosure.
+        </p>
+        <div id="pattern-results" class="pattern-results"></div>
+      </section>
+
+      <section class="feedback-block">
+        <div class="pattern-block-header">
+          <h3>Craft feedback</h3>
+          <button id="run-feedback-btn" class="btn btn-ghost">Ask Claude</button>
+        </div>
+        <p class="pattern-disclaimer">Optional. Pacing and voice notes only — this has nothing to do with disclosure.</p>
+        <div id="feedback-results" class="pattern-results"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="modal-backdrop" id="audit-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Audit trail</h2>
+      <button id="close-audit" class="btn btn-ghost">Close</button>
+    </div>
+    <p class="modal-note">Every entry below was written automatically and can't be edited or deleted — that's what makes it a record.</p>
+    <ol class="audit-list" id="audit-list"></ol>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="report-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Compliance report</h2>
+      <button id="close-report" class="btn btn-ghost">Close</button>
+    </div>
+    <div id="report-body" class="report-body"></div>
+    <div class="modal-footer">
+      <button id="download-report-btn" class="btn btn-stamp">Download as Markdown</button>
+    </div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
