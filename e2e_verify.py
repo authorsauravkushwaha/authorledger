@@ -72,7 +72,7 @@ def main():
 
             # ---- backup download link actually triggers a real download ----
             with page.expect_download() as download_info:
-                page.click("text=Download full backup")
+                page.click("#backup-download-link")
             download = download_info.value
             check("Backup link triggers a real file download", download.suggested_filename.endswith(".db"))
 
