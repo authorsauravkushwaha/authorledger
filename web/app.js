@@ -42,6 +42,10 @@
     lastReport: null,
     lastReportMarkdown: "",
     findCursor: 0,
+    typewriterMode: false,
+    lintResult: null,
+    bibleModalMode: "manage",
+    readAloud: { speaking: false, paused: false, chunks: [], index: 0, utterance: null },
   };
 
   // --------------------------------------------------- Backend Adapter --
@@ -232,6 +236,31 @@
       return state.store.getGlobalAuditLog();
     },
 
+    async listBibleEntries(bookId) {
+      if (state.mode === "server") {
+        const { entries } = await api(`/api/books/${bookId}/bible`);
+        return entries;
+      }
+      return state.store.listBibleEntries(bookId);
+    },
+
+    async saveBibleEntry(bookId, payload) {
+      if (state.mode === "server") {
+        const path = payload.id
+          ? `/api/books/${bookId}/bible/${payload.id}`
+          : `/api/books/${bookId}/bible`;
+        return api(path, { method: payload.id ? "PUT" : "POST", body: JSON.stringify(payload) });
+      }
+      return state.store.saveBibleEntry(bookId, payload);
+    },
+
+    async deleteBibleEntry(bookId, entryId) {
+      if (state.mode === "server") {
+        return api(`/api/books/${bookId}/bible/${entryId}`, { method: "DELETE" });
+      }
+      return state.store.deleteBibleEntry(entryId);
+    },
+
     async getReport(bookId) {
       if (state.mode === "server") {
         return api(`/api/books/${bookId}/report`);
@@ -293,6 +322,7 @@
     document.getElementById("editor-font-select").value = font;
     document.getElementById("editor-size-select").value = size;
     applyEditorTypography(font, size);
+    applyTypewriterMode(Boolean(prefs.typewriterMode));
   }
 
   function applyEditorTypography(font, size) {
@@ -645,6 +675,45 @@
       ? "You showed up. Your daily intention is complete!"
       : words > 0 ? `${(goal - words).toLocaleString()} more words. You’re making room for your story.`
       : "A blank page is full of possibility.";
+
+    const streakEl = document.getElementById("daily-streak");
+    const history = { ...(state.store.getPrefs().dailyHistory || {}) };
+    history[dayKey(new Date())] = words;
+    const streak = computeWritingStreak(history);
+    if (streak >= 2) {
+      streakEl.textContent = `${streak}-day writing streak — every one of them counted.`;
+      streakEl.classList.add("is-live");
+    } else if (words > 0) {
+      streakEl.textContent = "Day one of a new streak. Come back tomorrow.";
+      streakEl.classList.add("is-live");
+    } else {
+      streakEl.textContent = "Start a streak today — one word is enough.";
+      streakEl.classList.remove("is-live");
+    }
+  }
+
+  function computeWritingStreak(history) {
+    let streak = 0;
+    const cursor = new Date();
+    if (!((history[dayKey(cursor)] || 0) > 0)) cursor.setDate(cursor.getDate() - 1);
+    while ((history[dayKey(cursor)] || 0) > 0) {
+      streak += 1;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }
+
+  function recordDailyWords(words) {
+    const key = dayKey(new Date());
+    const prefs = state.store.getPrefs();
+    const history = { ...(prefs.dailyHistory || {}) };
+    history[key] = Math.max(0, Number(words) || 0);
+    const trimmed = {};
+    for (const day of Object.keys(history).sort().slice(-400)) trimmed[day] = history[day];
+    state.store.savePrefs({
+      dailyProgress: { date: key, words: history[key] },
+      dailyHistory: trimmed,
+    });
   }
 
   function wireStudioEvents() {
@@ -1125,6 +1194,52 @@
     const editor = document.getElementById("chapter-text");
     editor.addEventListener("input", onEditorInput);
     editor.addEventListener("keydown", onEditorKeydown);
+    ["keyup", "click", "select"].forEach((evt) => {
+      editor.addEventListener(evt, () => requestAnimationFrame(centerCaretInEditor));
+    });
+    editor.addEventListener("input", () => requestAnimationFrame(centerCaretInEditor));
+
+    // Craft layer — story bible, line edit, read aloud, typewriter mode
+    document.getElementById("bible-add-btn").addEventListener("click", async () => {
+      await openBibleModal();
+      openBibleForm(null);
+    });
+    document.getElementById("bible-search").addEventListener("input", () => renderBibleSection(state.activeBook));
+    document.getElementById("bible-filter").addEventListener("change", () => renderBibleSection(state.activeBook));
+    document.getElementById("close-bible-modal").addEventListener("click", () => hide("bible-modal"));
+    document.getElementById("bible-cancel-btn").addEventListener("click", () => {
+      setBibleModalMode("manage");
+      renderBibleModalList();
+    });
+    document.getElementById("bible-new-entry-btn").addEventListener("click", () => openBibleForm(null));
+    document.getElementById("bible-export-btn").addEventListener("click", exportStoryBible);
+    document.getElementById("bible-form").addEventListener("submit", saveBibleEntry);
+    document.getElementById("bible-delete-btn").addEventListener("click", deleteBibleEntryFromForm);
+    document.getElementById("editor-bible-btn").addEventListener("click", async () => {
+      await openBibleModal({ mode: "pick" });
+    });
+
+    document.getElementById("line-edit-btn").addEventListener("click", runLineEdit);
+    document.getElementById("line-edit-run-btn").addEventListener("click", runLineEdit);
+
+    document.getElementById("read-aloud-btn").addEventListener("click", () => {
+      const bar = document.getElementById("read-aloud-bar");
+      bar.hidden = !bar.hidden;
+      if (!bar.hidden) {
+        document.getElementById("read-aloud-status").textContent = readAloudSupported()
+          ? "Reads from your cursor to the end of the chapter, right here on your device."
+          : "This browser doesn’t offer on-device speech. Chrome, Edge, and Safari do.";
+      }
+    });
+    document.getElementById("read-toggle-btn").addEventListener("click", toggleReading);
+    document.getElementById("read-stop-btn").addEventListener("click", () => stopReading());
+    document.getElementById("read-rate-select").addEventListener("change", () => {
+      if (state.readAloud.speaking && !state.readAloud.paused) {
+        stopReading({ silent: true });
+        startReading();
+      }
+    });
+    document.getElementById("typewriter-btn").addEventListener("click", toggleTypewriterMode);
 
     document.getElementById("save-text-btn").addEventListener("click", () => onSaveText({ explicit: true }));
     document.getElementById("save-checkpoint-quick-btn").addEventListener("click", async () => {
@@ -1258,6 +1373,7 @@
 
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
+        if (state.readAloud.speaking) stopReading();
         let closedModal = false;
         document.querySelectorAll(".modal-backdrop").forEach((m) => {
           if (!m.hidden) {
@@ -1278,6 +1394,7 @@
     });
 
     window.addEventListener("beforeunload", () => {
+      if (state.readAloud.speaking) stopReading({ silent: true });
       if (state.dirtyText && state.activeChapterId && state.mode === "browser") {
         const text = document.getElementById("chapter-text").value;
         state.store.updateChapterTextSync(state.activeChapterId, text);
@@ -1334,6 +1451,8 @@
     hide("book-edit-panel");
     show("book-view");
 
+    document.getElementById("bible-search").value = "";
+    document.getElementById("bible-filter").value = "all";
     document.getElementById("book-title").textContent = book.title;
 
     const bylineEl = document.getElementById("book-byline");
@@ -1371,6 +1490,8 @@
 
     renderGoalStrip(book, book.chapters);
     renderTallyStrip(book.chapters);
+    renderManuscriptHealth(book);
+    renderBibleSection(book);
     renderChapterTable(book.chapters);
   }
 
@@ -1541,6 +1662,10 @@
     document.getElementById("save-status").textContent = "All changes saved";
     document.getElementById("pattern-results").innerHTML = "";
     document.getElementById("feedback-results").innerHTML = "";
+    document.getElementById("line-edit-results").innerHTML = "";
+    document.getElementById("line-edit-summary").textContent = "Run the scan to see what a pencil would circle.";
+    state.lintResult = null;
+    stopReading({ silent: true });
 
     updateStampButtons(chapter.classification || "unclassified");
     updateChapterNavButtons();
@@ -1599,9 +1724,7 @@
     updateLiveWritingStats(text);
     const count = Engine.countWords(text);
     const daily = getDailyProgress();
-    state.store.savePrefs({ dailyProgress: {
-      date: dayKey(new Date()), words: Math.max(0, daily.words + count - (state.lastEditorWordCount || 0))
-    }});
+    recordDailyWords(Math.max(0, daily.words + count - (state.lastEditorWordCount || 0)));
     state.lastEditorWordCount = count;
     renderDailyGoal();
     state.dirtyText = true;
@@ -2067,6 +2190,602 @@
     }
     downloadBlob(content, mimeMap[format] || "text/plain", `${slug}.${extMap[format] || "md"}`);
     hide("manuscript-modal");
+  }
+
+  // ------------------------------------------- Manuscript Health UI --
+
+  function renderManuscriptHealth(book) {
+    const health = Engine.computeManuscriptHealth(book.chapters || []);
+    const badge = document.getElementById("health-badge");
+    const allStamped = health.chapter_count > 0 && health.unclassified_chapter_count === 0;
+
+    if (!health.chapter_count) {
+      badge.textContent = "No chapters yet";
+    } else if (allStamped) {
+      badge.textContent = "Report ready";
+    } else {
+      badge.textContent = `${health.unclassified_chapter_count} unstamped`;
+    }
+    badge.classList.toggle("is-warning", health.chapter_count > 0 && !allStamped);
+
+    document.getElementById("health-next-step").textContent = health.next_step;
+
+    const chart = document.getElementById("chapter-pace-chart");
+    chart.innerHTML = "";
+    chart.classList.toggle("is-empty", health.chapter_count === 0);
+    if (!health.chapter_count) {
+      chart.textContent = "Add a chapter and the shape of your book will appear here.";
+    } else {
+      const max = Math.max(1, ...health.distribution.map((chapter) => chapter.words));
+      const outlierIds = new Set(
+        [...health.thin_chapters, ...health.bloated_chapters].map((chapter) => chapter.id)
+      );
+      for (const chapter of health.distribution) {
+        const bar = document.createElement("button");
+        bar.type = "button";
+        bar.className = "pace-bar";
+        if (!chapter.words) bar.classList.add("is-empty");
+        if (outlierIds.has(chapter.id)) bar.classList.add("is-outlier");
+        bar.title = `${chapter.title} · ${chapter.words.toLocaleString()} words`;
+        bar.setAttribute("aria-label", `Open ${chapter.title} — ${chapter.words} words`);
+        bar.addEventListener("click", () => openChapter(chapter.id));
+
+        const fill = document.createElement("span");
+        fill.className = "pace-bar-fill";
+        fill.style.height = `${Math.max(3, Math.round((chapter.words / max) * 100))}%`;
+        bar.appendChild(fill);
+        chart.appendChild(bar);
+      }
+    }
+
+    const notes = document.getElementById("health-notes");
+    notes.innerHTML = "";
+    for (const note of health.notes) {
+      const li = document.createElement("li");
+      li.textContent = note;
+      notes.appendChild(li);
+    }
+  }
+
+  // ----------------------------------------------- Story Bible (UI) --
+
+  async function refreshActiveBook() {
+    if (!state.activeBookId) return null;
+    state.activeBook = await Data.getBook(state.activeBookId);
+    return state.activeBook;
+  }
+
+  function renderBibleSection(book) {
+    const entries = (book && book.bible) || [];
+    const grid = document.getElementById("bible-grid");
+    const empty = document.getElementById("bible-empty");
+    const query = document.getElementById("bible-search").value.trim().toLowerCase();
+    const kind = document.getElementById("bible-filter").value;
+
+    const filtered = entries.filter((entry) => {
+      if (kind !== "all" && entry.kind !== kind) return false;
+      if (!query) return true;
+      return `${entry.name} ${entry.description} ${entry.tags}`.toLowerCase().includes(query);
+    });
+
+    grid.innerHTML = "";
+    empty.hidden = entries.length > 0;
+
+    if (!filtered.length) {
+      if (entries.length) {
+        const note = document.createElement("p");
+        note.className = "bible-grid-empty";
+        note.textContent = "No entries match that search yet.";
+        grid.appendChild(note);
+      }
+      return;
+    }
+
+    for (const entry of filtered) {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "bible-card";
+      card.addEventListener("click", () => openBibleModal({ mode: "manage", entryId: entry.id }));
+
+      const chip = document.createElement("span");
+      chip.className = "bible-kind-chip";
+      chip.dataset.kind = entry.kind;
+      chip.textContent = Engine.BIBLE_KIND_LABELS[entry.kind] || "Note";
+      card.appendChild(chip);
+
+      const name = document.createElement("span");
+      name.className = "bible-card-name";
+      name.textContent = entry.name;
+      card.appendChild(name);
+
+      if (entry.description) {
+        const desc = document.createElement("span");
+        desc.className = "bible-card-desc";
+        desc.textContent = entry.description;
+        card.appendChild(desc);
+      }
+      if (entry.tags) {
+        const tags = document.createElement("span");
+        tags.className = "bible-card-tags";
+        tags.textContent = entry.tags;
+        card.appendChild(tags);
+      }
+      grid.appendChild(card);
+    }
+  }
+
+  function setBibleModalMode(mode) {
+    state.bibleModalMode = mode;
+    const list = document.getElementById("bible-modal-list");
+    const form = document.getElementById("bible-form");
+    const actions = document.getElementById("bible-picker-actions");
+    const hint = document.getElementById("bible-list-hint");
+    const newBtn = document.getElementById("bible-new-entry-btn");
+    const title = document.getElementById("bible-modal-title");
+    const note = document.getElementById("bible-modal-note");
+
+    list.hidden = mode === "edit";
+    form.hidden = mode !== "edit";
+    actions.hidden = mode === "edit";
+
+    if (mode === "pick") {
+      title.textContent = "Story bible — insert a name";
+      note.textContent = "Click an entry to insert its name at your cursor, so spellings never drift mid-draft.";
+      newBtn.hidden = true;
+      hint.hidden = true;
+    } else {
+      title.textContent = "Story bible";
+      note.textContent = "Characters, places, lore and plot beats for this book. Craft notes only — they never enter the compliance ledger.";
+      newBtn.hidden = false;
+      hint.hidden = false;
+      hint.textContent = "Pick any entry to edit it.";
+    }
+  }
+
+  function renderBibleModalList() {
+    const list = document.getElementById("bible-modal-list");
+    list.innerHTML = "";
+    const entries = (state.activeBook && state.activeBook.bible) || [];
+
+    if (!entries.length) {
+      const note = document.createElement("p");
+      note.className = "bible-grid-empty";
+      note.textContent = "Nothing here yet. Start with your protagonist, the place they can’t leave, and the rule of the world that will cause trouble.";
+      list.appendChild(note);
+      return;
+    }
+
+    for (const entry of entries) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "bible-list-item";
+      item.title = state.bibleModalMode === "pick"
+        ? `Insert “${entry.name}” at your cursor`
+        : `Edit “${entry.name}”`;
+
+      const chip = document.createElement("span");
+      chip.className = "bible-kind-chip";
+      chip.dataset.kind = entry.kind;
+      chip.textContent = Engine.BIBLE_KIND_LABELS[entry.kind] || "Note";
+      item.appendChild(chip);
+
+      const name = document.createElement("span");
+      name.className = "bible-list-name";
+      name.textContent = entry.name;
+      item.appendChild(name);
+
+      if (entry.description) {
+        const desc = document.createElement("span");
+        desc.className = "bible-list-desc";
+        desc.textContent = entry.description;
+        item.appendChild(desc);
+      }
+
+      item.addEventListener("click", () => {
+        if (state.bibleModalMode === "pick") {
+          insertTextAtCursor(entry.name);
+          hide("bible-modal");
+        } else {
+          openBibleForm(entry);
+        }
+      });
+      list.appendChild(item);
+    }
+  }
+
+  async function openBibleModal({ mode = "manage", entryId = null } = {}) {
+    await flushPendingAutosave();
+    if (!state.activeBookId) {
+      alert("Open a manuscript first — the story bible belongs to a book.");
+      return;
+    }
+    if (!state.activeBook || state.activeBook.id !== state.activeBookId || !Array.isArray(state.activeBook.bible)) {
+      await refreshActiveBook();
+    }
+    setBibleModalMode(mode);
+    renderBibleModalList();
+    if (entryId !== null) {
+      const entry = (state.activeBook.bible || []).find((item) => item.id === Number(entryId));
+      if (entry) openBibleForm(entry);
+    }
+    show("bible-modal");
+  }
+
+  function openBibleForm(entry = null) {
+    setBibleModalMode("edit");
+    const filterKind = document.getElementById("bible-filter").value;
+    document.getElementById("bible-entry-id").value = entry ? String(entry.id) : "";
+    document.getElementById("bible-kind").value = entry
+      ? entry.kind
+      : filterKind !== "all" ? filterKind : "character";
+    document.getElementById("bible-name").value = entry ? entry.name : "";
+    document.getElementById("bible-description").value = entry ? entry.description : "";
+    document.getElementById("bible-tags").value = entry ? entry.tags : "";
+    document.getElementById("bible-delete-btn").hidden = !entry;
+    document.getElementById("bible-modal-title").textContent = entry
+      ? `Edit — ${entry.name}`
+      : "New story-bible entry";
+    document.getElementById("bible-modal-note").textContent = entry
+      ? "Changes stay with this book and travel inside your JSON backup."
+      : "A name, what they want, and what they’re hiding is usually enough to start.";
+    document.getElementById("bible-name").focus();
+  }
+
+  function exportStoryBible() {
+    const book = state.activeBook;
+    const entries = (book && book.bible) || [];
+    if (!entries.length) {
+      alert("There’s nothing in this story bible to export yet.");
+      return;
+    }
+    const lines = [`# ${book.title} — Story Bible`, ""];
+    let currentKind = null;
+    for (const entry of entries) {
+      if (entry.kind !== currentKind) {
+        currentKind = entry.kind;
+        lines.push("", `## ${Engine.BIBLE_KIND_LABELS[currentKind] || "Notes"}`, "");
+      }
+      lines.push(`### ${entry.name}`, "");
+      if (entry.description) lines.push(entry.description, "");
+      if (entry.tags) lines.push(`*Tags: ${entry.tags}*`, "");
+    }
+    lines.push("", "---", "", `Exported from AuthorLedger on ${new Date().toLocaleDateString()}.`);
+    const slug = (book.title || "book").replace(/[^a-z0-9]+/gi, "-").toLowerCase().replace(/^-|-$/g, "");
+    downloadBlob(lines.join("\n"), "text/markdown", `${slug || "book"}-story-bible.md`);
+  }
+
+  async function saveBibleEntry(e) {
+    e.preventDefault();
+    if (!state.activeBookId) return;
+    const entryId = document.getElementById("bible-entry-id").value;
+    const payload = {
+      kind: document.getElementById("bible-kind").value,
+      name: document.getElementById("bible-name").value.trim(),
+      description: document.getElementById("bible-description").value,
+      tags: document.getElementById("bible-tags").value,
+    };
+    if (!payload.name) {
+      document.getElementById("bible-name").focus();
+      return;
+    }
+    if (entryId) payload.id = Number(entryId);
+
+    try {
+      await Data.saveBibleEntry(state.activeBookId, payload);
+    } catch (err) {
+      alert(err.message || "Could not save that story-bible entry.");
+      return;
+    }
+    await refreshActiveBook();
+    if (!entryId) {
+      document.getElementById("bible-search").value = "";
+      document.getElementById("bible-filter").value = "all";
+    }
+    renderBibleSection(state.activeBook);
+    setBibleModalMode("manage");
+    renderBibleModalList();
+  }
+
+  async function deleteBibleEntryFromForm() {
+    const entryId = Number(document.getElementById("bible-entry-id").value);
+    if (!entryId || !state.activeBookId) return;
+    if (!confirm("Delete this story-bible entry? Chapter text is untouched.")) return;
+    try {
+      await Data.deleteBibleEntry(state.activeBookId, entryId);
+    } catch (err) {
+      alert(err.message || "Could not delete that entry.");
+      return;
+    }
+    await refreshActiveBook();
+    renderBibleSection(state.activeBook);
+    setBibleModalMode("manage");
+    renderBibleModalList();
+  }
+
+  function insertTextAtCursor(text) {
+    const editor = document.getElementById("chapter-text");
+    if (!editor) return;
+    const start = editor.selectionStart ?? editor.value.length;
+    const end = editor.selectionEnd ?? start;
+    editor.value = editor.value.slice(0, start) + text + editor.value.slice(end);
+    const caret = start + text.length;
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(caret, caret);
+    onEditorInput();
+  }
+
+  // ------------------------------------------------------ Line Edit UI --
+
+  function runLineEdit() {
+    // Results live below the editor, so leaving focus mode keeps them visible.
+    exitFocusMode();
+    const text = document.getElementById("chapter-text").value;
+    state.lintResult = Engine.lintProse(text);
+    renderLineEdit(state.lintResult);
+    document.getElementById("line-edit-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function highlightMatch(snippet, match) {
+    const html = escapeHtml(snippet || "");
+    const needle = String(match || "");
+    if (!needle) return html;
+    const at = html.toLowerCase().indexOf(escapeHtml(needle).toLowerCase());
+    if (at === -1) return html;
+    const length = escapeHtml(needle).length;
+    return `${html.slice(0, at)}<mark>${html.slice(at, at + length)}</mark>${html.slice(at + length)}`;
+  }
+
+  function buildLintCategory(category) {
+    const wrap = document.createElement("div");
+    wrap.className = "lint-category";
+
+    const head = document.createElement("div");
+    head.className = "lint-category-head";
+    const title = document.createElement("span");
+    title.className = "lint-category-title";
+    title.textContent = category.label;
+    const count = document.createElement("span");
+    count.className = "lint-count";
+    count.textContent = `${category.count}${category.capped ? "+" : ""}`;
+    head.appendChild(title);
+    head.appendChild(count);
+    wrap.appendChild(head);
+
+    const note = document.createElement("p");
+    note.className = "lint-note";
+    note.textContent = category.note;
+    wrap.appendChild(note);
+
+    if (category.key === "adverbs" && category.rate_per_1000 !== undefined) {
+      const rate = document.createElement("p");
+      rate.className = "lint-note";
+      rate.textContent = `${category.rate_per_1000} -ly words per 1,000 words.`;
+      wrap.appendChild(rate);
+    }
+
+    const list = document.createElement("ul");
+    list.className = "lint-examples";
+    for (const example of category.examples) {
+      const li = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "lint-example";
+
+      const context = document.createElement("span");
+      context.innerHTML = highlightMatch(example.context || example.match, example.match);
+      button.appendChild(context);
+
+      if (category.key === "repeated_openers" && example.count) {
+        const meta = document.createElement("span");
+        meta.className = "lint-example-context";
+        meta.textContent = `${example.count} sentences begin this way`;
+        button.appendChild(meta);
+      }
+
+      if (typeof example.index === "number" && example.index >= 0) {
+        button.addEventListener("click", () => jumpToEditorIndex(example.index, example.match));
+      } else {
+        button.disabled = true;
+      }
+      li.appendChild(button);
+      list.appendChild(li);
+    }
+    wrap.appendChild(list);
+    return wrap;
+  }
+
+  function renderLineEdit(result) {
+    const summary = document.getElementById("line-edit-summary");
+    const results = document.getElementById("line-edit-results");
+    results.innerHTML = "";
+    summary.textContent = result.summary;
+
+    if (!result.categories.length) return;
+
+    const flagged = result.categories.filter((category) => category.count > 0);
+    const clean = result.categories.filter((category) => category.count === 0);
+
+    if (!flagged.length) {
+      const note = document.createElement("p");
+      note.className = "lint-clean-note";
+      note.textContent = "Nothing on this checklist needs a second look — a genuinely clean pass. Read it once more for the things only you can hear.";
+      results.appendChild(note);
+    } else {
+      for (const category of flagged) results.appendChild(buildLintCategory(category));
+    }
+
+    if (clean.length) {
+      const note = document.createElement("p");
+      note.className = "lint-clean-note";
+      note.textContent = `Clear in this pass: ${clean.map((category) => category.label).join(", ")}.`;
+      results.appendChild(note);
+    }
+  }
+
+  function jumpToEditorIndex(index, match) {
+    const editor = document.getElementById("chapter-text");
+    const value = editor.value;
+    const start = Math.max(0, Math.min(Number(index) || 0, value.length));
+    const length = Math.max(0, Math.min(String(match || "").length, value.length - start));
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(start, start + length);
+    const maxScroll = Math.max(0, editor.scrollHeight - editor.clientHeight);
+    editor.scrollTop = value.length ? (start / value.length) * maxScroll : 0;
+  }
+
+  // ------------------------------------------------------ Read Aloud --
+
+  function readAloudSupported() {
+    return typeof window !== "undefined" &&
+      "speechSynthesis" in window &&
+      typeof window.SpeechSynthesisUtterance === "function";
+  }
+
+  function chunkForSpeech(text, maxLength = 240) {
+    const pieces = String(text || "").match(/[^.!?\n]+[.!?]*/g) || [];
+    const chunks = [];
+    let buffer = "";
+    for (const piece of pieces) {
+      const clean = piece.replace(/\s+/g, " ").trim();
+      if (!clean) continue;
+      if (buffer && (buffer.length + clean.length + 1) > maxLength) {
+        chunks.push(buffer);
+        buffer = clean;
+      } else {
+        buffer = buffer ? `${buffer} ${clean}` : clean;
+      }
+    }
+    if (buffer) chunks.push(buffer);
+    return chunks;
+  }
+
+  function stopReading({ silent = false } = {}) {
+    const reading = state.readAloud;
+    reading.speaking = false;
+    reading.paused = false;
+    reading.chunks = [];
+    reading.index = 0;
+    reading.utterance = null;
+    if (readAloudSupported()) window.speechSynthesis.cancel();
+    const bar = document.getElementById("read-aloud-bar");
+    if (bar) bar.classList.remove("is-reading");
+    const toggle = document.getElementById("read-toggle-btn");
+    if (toggle) toggle.textContent = "▷ Start reading";
+    if (!silent) {
+      document.getElementById("read-aloud-status").textContent =
+        "Stopped. Your place in the draft is untouched.";
+    }
+  }
+
+  function startReading() {
+    if (!readAloudSupported()) {
+      document.getElementById("read-aloud-status").textContent =
+        "This browser doesn’t offer on-device speech. Chrome, Edge, and Safari do.";
+      return;
+    }
+    const editor = document.getElementById("chapter-text");
+    const from = Number(editor.selectionStart) || 0;
+    const chunks = chunkForSpeech(editor.value.slice(from));
+    if (!chunks.length) {
+      document.getElementById("read-aloud-status").textContent =
+        "There’s nothing after your cursor to read yet.";
+      return;
+    }
+    stopReading({ silent: true });
+    const reading = state.readAloud;
+    reading.chunks = chunks;
+    reading.index = 0;
+    reading.speaking = true;
+    reading.paused = false;
+    document.getElementById("read-aloud-bar").classList.add("is-reading");
+    document.getElementById("read-toggle-btn").textContent = "Ⅱ Pause";
+    speakChunk();
+  }
+
+  function speakChunk() {
+    const reading = state.readAloud;
+    if (!reading.speaking) return;
+    if (reading.index >= reading.chunks.length) {
+      stopReading({ silent: true });
+      document.getElementById("read-aloud-status").textContent =
+        "Finished the chapter. Take a breath, then read it once on the page.";
+      return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(reading.chunks[reading.index]);
+    utterance.rate = Number(document.getElementById("read-rate-select").value) || 1;
+    utterance.pitch = 1;
+    utterance.onend = () => {
+      if (!state.readAloud.speaking) return;
+      state.readAloud.index += 1;
+      speakChunk();
+    };
+    utterance.onerror = (event) => {
+      if (event.error === "interrupted" || event.error === "canceled") return;
+      stopReading({ silent: true });
+      document.getElementById("read-aloud-status").textContent =
+        "Speech stopped early — this device may not have a voice installed for on-device reading.";
+    };
+    reading.utterance = utterance;
+    document.getElementById("read-aloud-status").textContent =
+      `Reading… part ${reading.index + 1} of ${reading.chunks.length}.`;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function toggleReading() {
+    const reading = state.readAloud;
+    if (!reading.speaking) {
+      startReading();
+      return;
+    }
+    if (reading.paused) {
+      window.speechSynthesis.resume();
+      reading.paused = false;
+      document.getElementById("read-toggle-btn").textContent = "Ⅱ Pause";
+      document.getElementById("read-aloud-status").textContent = "Reading…";
+    } else {
+      window.speechSynthesis.pause();
+      reading.paused = true;
+      document.getElementById("read-toggle-btn").textContent = "▷ Resume";
+      document.getElementById("read-aloud-status").textContent = "Paused. Your place is kept.";
+    }
+  }
+
+  // --------------------------------------------------- Typewriter Mode --
+
+  function applyTypewriterMode(enabled) {
+    state.typewriterMode = Boolean(enabled);
+    document.body.classList.toggle("typewriter-mode", state.typewriterMode);
+    const button = document.getElementById("typewriter-btn");
+    if (button) button.setAttribute("aria-pressed", String(state.typewriterMode));
+    if (state.typewriterMode) centerCaretInEditor();
+  }
+
+  function toggleTypewriterMode() {
+    const next = !state.typewriterMode;
+    state.store.savePrefs({ typewriterMode: next });
+    applyTypewriterMode(next);
+    document.getElementById("save-status").textContent = next
+      ? "Typewriter mode on — the page stays still under your eyes."
+      : "Typewriter mode off.";
+  }
+
+  function centerCaretInEditor() {
+    if (!state.typewriterMode) return;
+    const editor = document.getElementById("chapter-text");
+    if (!editor || !editor.value) return;
+    const style = getComputedStyle(editor);
+    const lineHeight = parseFloat(style.lineHeight) || (parseFloat(style.fontSize) || 18) * 1.6;
+    const fontSize = parseFloat(style.fontSize) || 18;
+    const usableWidth = Math.max(120, editor.clientWidth - 56);
+    const charsPerLine = Math.max(18, Math.floor(usableWidth / (fontSize * 0.52)));
+    const before = editor.value.slice(0, editor.selectionStart || 0);
+    let visualLines = 0;
+    for (const line of before.split("\n")) {
+      visualLines += Math.max(1, Math.ceil(line.length / charsPerLine));
+    }
+    const caretY = Math.max(0, visualLines - 1) * lineHeight;
+    editor.scrollTop = Math.max(0, caretY - editor.clientHeight / 2 + lineHeight / 2);
   }
 
   // ---------------------------------------------------------- Helpers --

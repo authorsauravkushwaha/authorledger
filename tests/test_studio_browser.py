@@ -163,3 +163,61 @@ def test_daily_progress_resets_for_a_new_day(page):
     page.reload(wait_until="networkidle")
     assert page.locator("#daily-words").inner_text() == "0"
     assert page.locator("#daily-goal-label").inner_text() == "750"
+
+
+def test_story_bible_health_and_craft_tools(page):
+    create_book(page, "Craft Tools Novel")
+
+    # Story bible: add a character, then confirm the card renders.
+    page.click("#bible-add-btn")
+    assert page.is_visible("#bible-modal")
+    assert page.is_visible("#bible-form")
+    page.fill("#bible-name", "Mira Quill")
+    page.fill("#bible-description", "Harbor cartographer with a pocket book of tide times.")
+    page.fill("#bible-tags", "protagonist, act one")
+    page.click("#bible-form button[type=submit]")
+    page.wait_for_selector("#bible-grid .bible-card")
+    assert "Mira Quill" in page.locator("#bible-grid").inner_text()
+    page.keyboard.press("Escape")
+    assert page.is_hidden("#bible-modal")
+
+    # Typewriter mode toggles and survives a reload (stored in preferences).
+    page.click("#daily-write-btn")
+    page.wait_for_selector("#chapter-view:not([hidden])")
+    page.click("#typewriter-btn")
+    assert page.locator("body").evaluate("el => el.classList.contains('typewriter-mode')")
+    page.reload(wait_until="networkidle")
+    page.click("#daily-write-btn")
+    assert page.locator("body").evaluate("el => el.classList.contains('typewriter-mode')")
+    page.click("#typewriter-btn")
+
+    # Line edit runs offline and every mark is clickable.
+    page.fill(
+        "#chapter-text",
+        "She felt very tired. She saw the door, and she really saw it. "
+        "At the end of the day, her heart pounded. The door was opened by the wind.",
+    )
+    page.click("#line-edit-btn")
+    page.wait_for_selector(".lint-category")
+    assert "Filter words" in page.locator("#line-edit-results").inner_text()
+    page.locator(".lint-example").first.click()
+    assert page.evaluate("document.getElementById('chapter-text').selectionEnd > 0")
+
+    # Story bible picker inserts a name at the cursor.
+    page.focus("#chapter-text")
+    page.evaluate("document.getElementById('chapter-text').setSelectionRange(0, 0)")
+    page.click("#editor-bible-btn")
+    assert page.is_visible("#bible-modal")
+    page.locator("#bible-modal-list .bible-list-item").first.click()
+    assert page.input_value("#chapter-text").startswith("Mira Quill")
+
+    # Read aloud bar opens; speech itself is not started in headless runs.
+    page.click("#read-aloud-btn")
+    assert page.is_visible("#read-aloud-bar")
+    assert page.is_hidden("#read-aloud-bar") is False
+
+    # Manuscript health summarises the book and flags unclassified chapters.
+    page.click("#back-to-book")
+    page.wait_for_selector("#book-view:not([hidden])")
+    assert page.locator("#chapter-pace-chart .pace-bar").count() == 1
+    assert "unstamped" in page.locator("#health-badge").inner_text()

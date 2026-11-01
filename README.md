@@ -24,6 +24,11 @@ AuthorLedger gives you a calm, distraction-free **writing studio and compliance 
 - **A calm, author-first workspace.** An editorial dashboard with a dedicated manuscript shelf, persistent studio navigation, an illustrated welcome, live writing statistics, and a 26-week ledger-activity heatmap. Search manuscripts by title or author, sort by recent activity, title, or word count, and open them with the keyboard.
 - **Make a daily writing practice.** Set your own daily word goal and see net words added in the editor on this device today. A 25-minute focus timer supports pause, reset, and reload recovery, using a real deadline so background-tab throttling doesn't lose time. Sample books and manuscript imports don't inflate your daily writing count.
 - **A clearer next step.** Jump into your latest chapter, export a manuscript, run offline craft feedback, or explore the studio guide. Backup and restore are available in workspace settings on mobile as well as the desktop sidebar. All statistics start with your real data, not fabricated activity.
+- **Keep a story bible with the book.** Every character, place, rule of the world, and plot beat lives beside the manuscript — searchable, taggable, exportable as Markdown, and insertable into the draft at the cursor with one click, so spellings and details never drift between chapters.
+- **Line-edit like an editor would.** A one-click offline copy-editing pass marks filter words, intensifiers, `-ly` adverbs, rough passive constructions, worn phrases, repeated sentence openers, and pacing outliers. Every mark jumps to the exact sentence. It never scores your prose and never guesses how it was written.
+- **Hear the book, and keep the page still.** Read any chapter aloud from your cursor using your device's own voice, and switch on **typewriter mode** so the line you're writing stays put while the page moves around it.
+- **See the shape of the manuscript.** A manuscript-health panel charts words per chapter, flags chapters that are far shorter or longer than the rest, tracks how much of the book is still unstamped, and tells you the one honest next step.
+- **Make a daily practice that remembers.** Streaks, daily word goals, and a focus timer — all computed from your real writing on this device, never from fabricated activity.
 - **Write and save directly in your browser.** Create books and chapters, set word-count goals, write in **Focus Mode** with customizable typography (`Serif`, `Sans`, `Mono`) and paper themes (`Ledger`, `Parchment`, `Night Ink`), use Find & Replace, reorder chapters, and save named **version snapshots** before rewrites. Everything saves automatically to your browser (`IndexedDB` + synchronous `localStorage` mirror) with zero account or server required.
 - **Own your manuscript & backups.** Download your compiled book anytime as **Markdown (`.md`)**, **Plain Text (`.txt`)**, or **Print-ready Typeset HTML / PDF (`.html`)**. Import existing `.md` or `.txt` manuscripts (automatically split into chapters) and export/restore full `.json` workspace backups across devices.
 - **Log every chapter honestly.** Stamp each chapter **Human-written**, **AI-assisted**, or **AI-generated**, with an optional note about which tool and what it helped with.
@@ -31,6 +36,19 @@ AuthorLedger gives you a calm, distraction-free **writing studio and compliance 
 - **Export a KDP compliance report** in one click: word counts by classification, percentages, chapter breakdown, and a plain-language suggested disclosure note for KDP, downloadable as Markdown.
 - **Run a Writing Pattern Report**, if you want one — sentence-rhythm (burstiness), word variety, repeated trigrams, and overused-phrase stats on any chapter, framed as a memory-jogger for your own honest classification, **not** as an AI detector.
 - **Check craft & pacing offline (or optionally ask Claude).** Run an instant, offline craft check (paragraph pacing, sentence rhythm, modifier density, dialogue balance), or optionally add your own Anthropic API key in browser settings for live Claude feedback.
+
+## The craft layer: built for the writing, not the feed
+
+Most writing platforms are built to keep you scrolling. AuthorLedger is built to get the book finished. There is no feed, no algorithm, no follower count, and no account to grow — which is exactly why the tools can afford to be honest:
+
+- **A story bible that belongs to the book.** Characters, places, lore, and plot beats are stored per manuscript, searchable, and exportable. Insert a character's name into a scene at the cursor so continuity survives a 40-chapter series.
+- **A line edit, not a lecture.** The scanner is a pencil, not a judge: it points at the tics editors circle and gets out of the way. No scores, no grades, no "AI likelihood", and every mark is one click from the actual sentence.
+- **Read aloud, on your device.** Your browser's own speech engine reads from your cursor to the end of the chapter. Nothing is uploaded, and nothing is synthesized anywhere but locally.
+- **Typewriter mode.** The page moves under your eyes; the line you're writing stays in the middle of the screen.
+- **Manuscript health.** Chapter-length distribution, pacing outliers, unstamped chapters, and a single, specific next step — measured from your real text, not from a checklist.
+- **A streak with a memory.** Daily words are recorded on this device so "I wrote yesterday" is a fact you can check, not a feeling.
+
+All of it works offline, all of it is free, and none of it asks you to publish in public to be useful.
 
 ## Why it works this way
 
@@ -80,18 +98,18 @@ python3 main.py
 authorledger/
 ├── web/                       # standalone browser studio (deployed to GitHub Pages)
 │   ├── index.html             # full writing & compliance workspace markup
-│   ├── engine.js              # browser IndexedDB store, pattern analysis, reports, manuscript compiler
+│   ├── engine.js              # browser IndexedDB store, line edit, manuscript health, analysis, reports, compiler
 │   ├── depth.js               # 3D layer: hero book scene, card tilt/glare, scroll reveal (no libraries)
-│   ├── app.js                 # UI controller (autosave, focus mode, snapshots, exports)
+│   ├── app.js                 # UI controller (autosave, story bible, read aloud, focus mode, snapshots, exports)
 │   └── style.css              # responsive studio shell, paper themes & book covers
 ├── main.py                    # optional local Python entry point
 ├── authorledger/              # optional stdlib-only Python + SQLite backend
-│   ├── database.py            # SQLite layer + append-only audit log + snapshots
+│   ├── database.py            # SQLite layer + append-only audit log + snapshots + story bible
 │   ├── analysis.py            # Writing Pattern Report heuristics
 │   ├── reports.py             # compliance report + suggested disclosure text
 │   ├── llm_assist.py          # optional Claude integration via urllib
-│   └── server.py              # stdlib HTTP server + JSON API
-└── tests/                     # Python + browser engine automated tests
+│   └── server.py              # stdlib HTTP server + JSON API (incl. story-bible routes)
+└── tests/                     # Python, server API, browser-engine and studio UI tests
 ```
 
 ## Running the tests
@@ -102,7 +120,8 @@ python3 -m pytest tests/ -v
 
 Optional real-browser checks cover responsive layouts, manuscript search and
 sorting, autosave persistence, daily goals, timer recovery, keyboard navigation,
-mobile backups, and manuscript export:
+mobile backups, manuscript export, and the craft layer (story bible, line edit,
+typewriter mode, read-aloud controls, manuscript health):
 
 ```bash
 python3 -m pip install playwright
