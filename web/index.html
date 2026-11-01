@@ -91,7 +91,7 @@
       <aside class="dashboard-rail" aria-label="Writing goals and tools">
         <section class="rail-card goal-card"><div class="rail-heading"><h3>Your daily intention</h3><button type="button" id="edit-daily-goal-btn" class="icon-button" aria-label="Edit daily word goal">⚙</button></div><p>A little progress, every day.</p>
           <div class="goal-ring"><svg viewBox="0 0 160 160" aria-hidden="true"><circle class="ring-track" cx="80" cy="80" r="69"/><circle id="daily-goal-ring" class="ring-value" cx="80" cy="80" r="69" pathLength="100"/></svg><div><strong id="daily-words">0</strong><span>of <span id="daily-goal-label">500</span> words</span></div></div>
-          <p class="goal-encouragement" id="goal-encouragement">A blank page is full of possibility.</p><button type="button" id="daily-write-btn" class="btn btn-primary btn-block">Let’s write <span>→</span></button>
+          <p class="goal-encouragement" id="goal-encouragement">A blank page is full of possibility.</p><p class="goal-streak" id="daily-streak">Start a streak today — one word is enough.</p><button type="button" id="daily-write-btn" class="btn btn-primary btn-block">Let’s write <span>→</span></button>
           <form id="daily-goal-form" hidden><label for="daily-goal-input">Daily word goal</label><div><input type="number" id="daily-goal-input" min="1" max="100000" value="500" required><button class="btn btn-primary" type="submit">Save</button></div></form>
         </section>
         <section class="rail-card timer-card"><div class="rail-heading"><h3>A moment of focus</h3><span aria-hidden="true">◴</span></div><p>Less noise. More words.</p><div id="focus-clock" class="focus-clock" role="timer" aria-label="Focus timer">25:00</div><div class="timer-controls"><button type="button" id="start-focus-btn" class="btn btn-ghost">▷ Start session</button><button type="button" id="reset-focus-btn" class="icon-button" aria-label="Reset focus timer">↺</button></div><p id="focus-session-note" class="timer-note" aria-live="polite">25 minutes, just for your story.</p></section>
@@ -104,7 +104,7 @@
       <section class="dash-section" id="feature-tour">
         <div class="dash-section-head">
           <h3 class="dash-section-title">Everything the studio does</h3>
-          <p class="dash-section-sub">Eight working systems, all offline-first, all yours. Nothing here is a placeholder.</p>
+          <p class="dash-section-sub">Ten working systems, all offline-first, all yours. Nothing here is a placeholder.</p>
         </div>
         <div class="feature-grid">
           <article class="feature-card">
@@ -178,6 +178,26 @@
             </ul>
           </article>
           <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">☰</div>
+            <h4 class="feature-title">Story bible &amp; world notes</h4>
+            <p class="feature-desc">Keep every character, place, piece of lore, and plot beat with the book it belongs to — searchable, taggable, and one click from the draft. It lives beside your chapters, not in a separate document you forget to open.</p>
+            <ul class="feature-tags">
+              <li>Characters &amp; places</li>
+              <li>Lore &amp; plot beats</li>
+              <li>Insert into draft</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⌦</div>
+            <h4 class="feature-title">Line edit, read aloud &amp; typewriter</h4>
+            <p class="feature-desc">A pencil-line editor pass for filter words, intensifiers, passive constructions, worn phrases, and pacing outliers — every mark jumps to the exact sentence. Then hear the prose read back on your own device, or write with the line held still in the middle of the screen.</p>
+            <ul class="feature-tags">
+              <li>Click-to-jump marks</li>
+              <li>On-device read aloud</li>
+              <li>Typewriter mode</li>
+            </ul>
+          </article>
+          <article class="feature-card">
             <div class="feature-icon" aria-hidden="true">↓</div>
             <h4 class="feature-title">Own your exports</h4>
             <p class="feature-desc">Download your compiled book as Markdown, plain text, or print-ready typeset HTML for PDF. Import existing .md / .txt drafts (auto-split into chapters), and move complete JSON workspace backups between devices.</p>
@@ -243,6 +263,14 @@
           <details class="faq-item">
             <summary class="faq-q">Do I need to disclose AI-assisted editing?</summary>
             <p class="faq-a">Amazon KDP's policy requires disclosing AI-generated text, images, or translations; ordinary AI-assisted work like brainstorming or grammar-checking your own writing does not currently require disclosure. Policies change, and Amazon reviews back-catalogues too — always check KDP's current guidelines. AuthorLedger keeps the record either way, so you can answer confidently.</p>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">What is the story bible for?</summary>
+            <p class="faq-a">It is a per-book notebook for the people, places, lore, and plot beats of your world — searchable, taggable, and one click from your draft, so a character’s eye colour or a city’s name never drifts between chapters. It is craft material, not compliance data: story-bible notes never enter the append-only ledger.</p>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">Does the line edit check my grammar?</summary>
+            <p class="faq-a">No — it is a copy-editing checklist, not a grammar checker and not a detector. It flags filter words, intensifiers, -ly adverbs, rough passive constructions, worn phrases, repeated sentence openers, and pacing outliers, then lets you jump straight to each one. It never scores your prose or guesses how it was written.</p>
           </details>
           <details class="faq-item">
             <summary class="faq-q">Can I take my work with me?</summary>
@@ -329,6 +357,45 @@
 
       <!-- Classification Tally Strip -->
       <div class="tally-strip" id="tally-strip"></div>
+
+      <div class="manuscript-insights" id="manuscript-insights">
+        <section class="insight-card health-card">
+          <div class="insight-head">
+            <div>
+              <h3 class="insight-title">Manuscript health</h3>
+              <p class="insight-sub">Shape, pace, and the honest next step.</p>
+            </div>
+            <span class="insight-badge" id="health-badge">—</span>
+          </div>
+          <p class="health-next-step" id="health-next-step"></p>
+          <div class="chapter-pace-chart" id="chapter-pace-chart" aria-label="Words per chapter"></div>
+          <ul class="health-notes" id="health-notes"></ul>
+        </section>
+        <section class="insight-card bible-card">
+          <div class="insight-head">
+            <div>
+              <h3 class="insight-title">Story bible</h3>
+              <p class="insight-sub">The people, places, and rules of this world.</p>
+            </div>
+            <div class="insight-actions">
+              <button type="button" id="bible-export-btn" class="btn btn-ghost btn-compact" title="Download this story bible as Markdown">↓ .md</button>
+              <button type="button" id="bible-add-btn" class="btn btn-ghost btn-compact">+ Add entry</button>
+            </div>
+          </div>
+          <div class="bible-toolbar">
+            <label class="bible-search"><span aria-hidden="true">⌕</span><input type="search" id="bible-search" placeholder="Search characters, places, lore…" aria-label="Search story bible"></label>
+            <select id="bible-filter" aria-label="Filter story bible by kind">
+              <option value="all">All entries</option>
+              <option value="character">Characters</option>
+              <option value="place">Places</option>
+              <option value="lore">Lore</option>
+              <option value="plot">Plot beats</option>
+            </select>
+          </div>
+          <div class="bible-grid" id="bible-grid"></div>
+          <p class="muted-note" id="bible-empty">No story-bible entries yet. Add a character, a place, a rule of the world, or the next plot beat — future-you will thank present-you.</p>
+        </section>
+      </div>
 
       <div class="chapters-block">
         <div class="chapters-block-header">
@@ -442,6 +509,26 @@
             <option value="large">Large</option>
           </select>
         </div>
+        <div class="toolbar-group">
+          <button type="button" id="line-edit-btn" class="tool-btn" title="Run an offline line-edit pass on this chapter">Line edit</button>
+          <button type="button" id="read-aloud-btn" class="tool-btn" title="Hear this chapter read aloud on this device">Read aloud</button>
+          <button type="button" id="typewriter-btn" class="tool-btn" title="Keep the current line centred while you write">Typewriter</button>
+          <button type="button" id="editor-bible-btn" class="tool-btn" title="Look up a character, place, or plot beat">Story bible</button>
+        </div>
+      </div>
+
+      <div id="read-aloud-bar" class="read-aloud-bar" hidden>
+        <button type="button" id="read-toggle-btn" class="btn btn-compact">▷ Start reading</button>
+        <button type="button" id="read-stop-btn" class="btn btn-ghost btn-compact">■ Stop</button>
+        <label class="read-rate-label">Speed
+          <select id="read-rate-select">
+            <option value="0.85">0.85×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.15">1.15×</option>
+            <option value="1.3">1.3×</option>
+          </select>
+        </label>
+        <span id="read-aloud-status" class="read-aloud-status" aria-live="polite">Reads from the cursor to the end of the chapter, right here on your device.</span>
       </div>
 
       <!-- Find & Replace Bar -->
@@ -474,6 +561,20 @@
       </div>
 
       <div class="chapter-panels" id="chapter-panels">
+        <section class="line-edit-block" id="line-edit-panel">
+          <div class="pattern-block-header">
+            <h3>Line edit</h3>
+            <button type="button" id="line-edit-run-btn" class="btn btn-ghost">Scan chapter</button>
+          </div>
+          <p class="pattern-disclaimer">
+            An offline copy-editing pass — filter words, intensifiers, worn phrases, passive constructions,
+            and pacing outliers. It never scores your writing and says nothing about how it was made.
+            Click any mark to jump to that sentence.
+          </p>
+          <p class="line-edit-summary" id="line-edit-summary" aria-live="polite">Run the scan to see what a pencil would circle.</p>
+          <div id="line-edit-results" class="line-edit-results"></div>
+        </section>
+
         <section class="classify-block">
           <h3>How was this chapter written? Be honest — only you know.</h3>
           <div class="stamp-choices" id="stamp-choices">
@@ -614,6 +715,53 @@
       <button type="submit">Save snapshot</button>
     </form>
     <ul id="snapshots-list" class="audit-list snapshot-list"></ul>
+  </div>
+</div>
+
+<!-- Story Bible Modal (manage, edit, and insert into draft) -->
+<div class="modal-backdrop" id="bible-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="bible-modal-title">Story bible</h2>
+      <button type="button" id="close-bible-modal" class="btn btn-ghost">Close</button>
+    </div>
+    <p class="modal-note" id="bible-modal-note">Characters, places, lore and plot beats for this book. Craft notes only — they never enter the compliance ledger.</p>
+    <div id="bible-modal-list" class="bible-modal-list"></div>
+    <div class="bible-picker-actions" id="bible-picker-actions">
+      <button type="button" id="bible-new-entry-btn" class="btn btn-ghost">+ New entry</button>
+      <span class="muted-note" id="bible-list-hint">Pick any entry to edit it.</span>
+    </div>
+    <form id="bible-form" class="bible-form" hidden>
+      <input type="hidden" id="bible-entry-id">
+      <div class="bible-form-grid">
+        <label>
+          <span>Kind</span>
+          <select id="bible-kind">
+            <option value="character">Character</option>
+            <option value="place">Place</option>
+            <option value="lore">Lore</option>
+            <option value="plot">Plot beat</option>
+          </select>
+        </label>
+        <label>
+          <span>Name</span>
+          <input type="text" id="bible-name" placeholder="e.g. Mira Quill" required>
+        </label>
+      </div>
+      <label class="bible-form-wide">
+        <span>Notes</span>
+        <textarea id="bible-description" rows="4" placeholder="Who they are, what they want, what they hide…"></textarea>
+      </label>
+      <label class="bible-form-wide">
+        <span>Tags (comma separated)</span>
+        <input type="text" id="bible-tags" placeholder="protagonist, act one, harbour">
+      </label>
+      <div class="modal-footer">
+        <button type="button" id="bible-delete-btn" class="btn btn-danger-ghost">Delete entry</button>
+        <button type="button" id="bible-cancel-btn" class="btn btn-ghost">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save entry</button>
+      </div>
+    </form>
   </div>
 </div>
 

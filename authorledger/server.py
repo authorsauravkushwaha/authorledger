@@ -64,6 +64,10 @@ ROUTES: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"^/api/books/(?P<book_id>\d+)/chapters$"), "POST", "handle_create_chapter"),
     (re.compile(r"^/api/books/(?P<book_id>\d+)/audit$"), "GET", "handle_get_audit"),
     (re.compile(r"^/api/books/(?P<book_id>\d+)/report$"), "GET", "handle_get_report"),
+    (re.compile(r"^/api/books/(?P<book_id>\d+)/bible$"), "GET", "handle_list_bible"),
+    (re.compile(r"^/api/books/(?P<book_id>\d+)/bible$"), "POST", "handle_save_bible"),
+    (re.compile(r"^/api/books/(?P<book_id>\d+)/bible/(?P<entry_id>\d+)$"), "PUT", "handle_save_bible"),
+    (re.compile(r"^/api/books/(?P<book_id>\d+)/bible/(?P<entry_id>\d+)$"), "DELETE", "handle_delete_bible"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)$"), "GET", "handle_get_chapter"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)$"), "DELETE", "handle_delete_chapter"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/text$"), "PUT", "handle_update_text"),
@@ -271,6 +275,7 @@ def make_handler(db_path: str):
                 self._send_json(404, {"error": "Book not found."})
                 return
             book["chapters"] = database.list_chapters(conn, book_id)
+            book["bible"] = database.list_bible_entries(conn, book_id)
             self._send_json(200, book)
 
         def handle_update_book(self, match, body):
@@ -285,6 +290,7 @@ def make_handler(db_path: str):
                 word_goal=body.get("word_goal"),
             )
             updated["chapters"] = database.list_chapters(conn, book_id)
+            updated["bible"] = database.list_bible_entries(conn, book_id)
             self._send_json(200, updated)
 
         def handle_delete_book(self, match, body):
@@ -413,6 +419,35 @@ def make_handler(db_path: str):
         def handle_get_global_audit(self, match, body):
             conn = self._connect()
             self._send_json(200, {"audit_log": database.get_all_audit_logs(conn)})
+
+        def handle_list_bible(self, match, body):
+            conn = self._connect()
+            book_id = int(match.group("book_id"))
+            if database.get_book(conn, book_id) is None:
+                self._send_json(404, {"error": "Book not found."})
+                return
+            self._send_json(200, {"entries": database.list_bible_entries(conn, book_id)})
+
+        def handle_save_bible(self, match, body):
+            conn = self._connect()
+            book_id = int(match.group("book_id"))
+            entry_id = match.groupdict().get("entry_id")
+            entry = database.save_bible_entry(
+                conn,
+                book_id,
+                entry_id=int(entry_id) if entry_id else None,
+                kind=body.get("kind", "character"),
+                name=body.get("name", ""),
+                description=body.get("description", ""),
+                tags=body.get("tags", ""),
+            )
+            status = 200 if entry_id else 201
+            self._send_json(status, entry)
+
+        def handle_delete_bible(self, match, body):
+            conn = self._connect()
+            database.delete_bible_entry(conn, int(match.group("entry_id")))
+            self._send_json(200, {"ok": True})
 
         def handle_get_report(self, match, body):
             conn = self._connect()

@@ -26,6 +26,9 @@ from pathlib import Path
 # starting state — AuthorLedger never guesses this for you.
 VALID_CLASSIFICATIONS = ("human", "ai_assisted", "ai_generated", "unclassified")
 VALID_CHAPTER_STATUSES = ("drafting", "revising", "final")
+# Story-bible entry kinds. These are craft notes (who/what/where), kept
+# deliberately separate from the compliance audit log.
+VALID_BIBLE_KINDS = ("character", "place", "lore", "plot")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS books (
@@ -58,6 +61,20 @@ CREATE TABLE IF NOT EXISTS chapter_snapshots (
     text TEXT NOT NULL DEFAULT '',
     word_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
+);
+
+-- Story Bible: people, places, lore and plot beats for one book. This is
+-- craft material, not compliance history, so it is never written to the
+-- audit log and it does cascade away with its book.
+CREATE TABLE IF NOT EXISTS story_bible (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'character',
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 
 -- Deliberately NOT a foreign key with ON DELETE CASCADE: if a book is
@@ -448,6 +465,79 @@ def restore_snapshot(conn: sqlite3.Connection, snapshot_id: int) -> dict:
         word_count=_word_count(snap["text"]),
     )
     return get_chapter(conn, chapter["id"])
+
+
+# ----------------------------------------------------------- story bible --
+
+def list_bible_entries(conn: sqlite3.Connection, book_id: int) -> list[dict]:
+    rows = conn.execute(
+        "SELECT * FROM story_bible WHERE book_id = ? ORDER BY id ASC", (book_id,)
+    ).fetchall()
+    order = {kind: index for index, kind in enumerate(VALID_BIBLE_KINDS)}
+    entries = [dict(r) for r in rows]
+    entries.sort(key=lambda e: (order.get(e["kind"], 99), e["name"].lower(), e["id"]))
+    return entries
+
+
+def _clean_tags(tags: str) -> str:
+    return ", ".join(part.strip() for part in str(tags or "").split(",") if part.strip())
+
+
+def save_bible_entry(
+    conn: sqlite3.Connection,
+    book_id: int,
+    *,
+    entry_id: int | None = None,
+    kind: str = "character",
+    name: str = "",
+    description: str = "",
+    tags: str = "",
+) -> dict:
+    """Create (entry_id=None) or update one story-bible entry."""
+    book = get_book(conn, book_id)
+    if book is None:
+        raise ValueError(f"No book with id {book_id}.")
+    clean_kind = kind if kind in VALID_BIBLE_KINDS else "character"
+    clean_name = str(name or "").strip()
+    if not clean_name:
+        raise ValueError("A story-bible entry needs a name.")
+    clean_description = str(description or "").strip()
+    clean_tags = _clean_tags(tags)
+    now = _now()
+
+    if entry_id is None:
+        cur = conn.execute(
+            """INSERT INTO story_bible
+               (book_id, kind, name, description, tags, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (book_id, clean_kind, clean_name, clean_description, clean_tags, now, now),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM story_bible WHERE id = ?", (cur.lastrowid,)).fetchone()
+        return dict(row)
+
+    existing = conn.execute(
+        "SELECT * FROM story_bible WHERE id = ? AND book_id = ?", (entry_id, book_id)
+    ).fetchone()
+    if existing is None:
+        raise ValueError(f"No story-bible entry with id {entry_id} in book {book_id}.")
+    conn.execute(
+        """UPDATE story_bible
+           SET kind = ?, name = ?, description = ?, tags = ?, updated_at = ?
+           WHERE id = ?""",
+        (clean_kind, clean_name, clean_description, clean_tags, now, entry_id),
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM story_bible WHERE id = ?", (entry_id,)).fetchone()
+    return dict(row)
+
+
+def delete_bible_entry(conn: sqlite3.Connection, entry_id: int) -> None:
+    row = conn.execute("SELECT * FROM story_bible WHERE id = ?", (entry_id,)).fetchone()
+    if row is None:
+        raise ValueError(f"No story-bible entry with id {entry_id}.")
+    conn.execute("DELETE FROM story_bible WHERE id = ?", (entry_id,))
+    conn.commit()
 
 
 # ----------------------------------------------------------- audit log --

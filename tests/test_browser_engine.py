@@ -196,3 +196,197 @@ def test_browser_store_persistence_backups_snapshots_and_append_only_audit():
         text=True,
     )
     assert "ALL_BROWSER_ENGINE_CHECKS_PASSED" in proc.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js required to test browser engine")
+def test_js_line_edit_and_manuscript_health():
+    node_script = """
+    const assert = require("assert");
+    const Engine = require(process.argv[1]);
+
+    const sample =
+      "She felt very tired. She saw the door, and she really saw it. " +
+      "At the end of the day, her heart pounded. She said angrily, \\"Go.\\" " +
+      "The door was opened by the wind. She only wanted to go home, finally.";
+
+    const report = Engine.lintProse(sample);
+    const byKey = Object.fromEntries(report.categories.map(c => [c.key, c]));
+
+    assert.strictEqual(report.word_count, 40);
+    assert(byKey.filter_words.count >= 3, "filter words found");
+    assert(byKey.intensifiers.count >= 2, "intensifiers found");
+    assert(byKey.adverbs.count >= 2, "adverbs found");
+    assert(byKey.passive_voice.count >= 1, "passive voice heuristic fired");
+    assert(byKey.dialogue_tags.count >= 1, "adverb-modified dialogue tag found");
+    assert(byKey.cliches.count >= 2, "worn phrases found");
+    assert(byKey.repeated_openers.count >= 1, "repeated sentence opener found");
+    assert(report.style_marks > 0 && report.structure_marks > 0);
+
+    // Every jump index must point at the matched text in the original prose.
+    const firstFilter = byKey.filter_words.examples[0];
+    assert.strictEqual(sample.slice(firstFilter.index, firstFilter.index + firstFilter.match.length), firstFilter.match);
+
+    // Categories sum exactly to the headline counts.
+    const styleSum = report.categories.filter(c => c.group === "style").reduce((n, c) => n + c.count, 0);
+    const structureSum = report.categories.filter(c => c.group === "structure").reduce((n, c) => n + c.count, 0);
+    assert.strictEqual(styleSum, report.style_marks);
+    assert.strictEqual(structureSum, report.structure_marks);
+
+    // Plain, deliberate prose can pass cleanly.
+    const clean = Engine.lintProse("The dog ran. A cat slept on the step.");
+    assert.strictEqual(clean.style_marks, 0);
+    assert.strictEqual(clean.structure_marks, 0);
+
+    // Empty text is handled without throwing.
+    const empty = Engine.lintProse("");
+    assert.strictEqual(empty.word_count, 0);
+    assert.deepStrictEqual(empty.categories, []);
+
+    // No detector-style language is ever emitted.
+    const serialized = JSON.stringify(report).toLowerCase();
+    ["verdict", "confidence", "probability", "ai score"].forEach(word => {
+      assert(!serialized.includes(word), `line edit must not emit '${word}'`);
+    });
+
+    const health = Engine.computeManuscriptHealth([
+      { id: 1, title: "Short", text: "one two three", status: "final", classification: "human" },
+      { id: 2, title: "Steady", text: "word ".repeat(1200), status: "revising", classification: "ai_assisted" },
+      { id: 3, title: "Steady too", text: "word ".repeat(1150), status: "drafting", classification: "unclassified" },
+      { id: 4, title: "Bloated", text: "word ".repeat(9000), status: "drafting", classification: "human" },
+      { id: 5, title: "Empty", text: "", status: "drafting", classification: "unclassified" },
+    ]);
+    assert.strictEqual(health.chapter_count, 5);
+    assert.strictEqual(health.total_words, 3 + 1200 + 1150 + 9000);
+    assert(health.thin_chapters.some(c => c.title === "Short"));
+    assert(health.bloated_chapters.some(c => c.title === "Bloated"));
+    assert.deepStrictEqual(health.empty_chapters.map(c => c.title), ["Empty"]);
+    assert.strictEqual(health.unclassified_chapter_count, 2);
+    assert.strictEqual(health.unclassified_words, 1150);
+    assert(health.next_step.includes("Empty"), "next step points at the empty chapter");
+    assert(health.notes.some(note => note.includes("unclassified")));
+    assert.strictEqual(health.distribution.length, 5);
+    assert.strictEqual(health.distribution.reduce((sum, c) => sum + c.share, 0) > 0.99, true);
+
+    const emptyHealth = Engine.computeManuscriptHealth([]);
+    assert.strictEqual(emptyHealth.chapter_count, 0);
+    assert(emptyHealth.next_step.length > 0);
+
+    console.log("LINE_EDIT_AND_HEALTH_OK");
+    """
+    proc = subprocess.run(
+        ["node", "-e", node_script, str(ENGINE_PATH)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "LINE_EDIT_AND_HEALTH_OK" in proc.stdout
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="Node.js required to test browser engine")
+def test_js_story_bible_store_persistence_and_backups():
+    node_script = """
+    const assert = require("assert");
+    const Engine = require(process.argv[1]);
+
+    const disk = new Map();
+    const fakeLocalStorage = {
+      getItem: (k) => (disk.has(k) ? disk.get(k) : null),
+      setItem: (k, v) => disk.set(k, String(v)),
+      removeItem: (k) => disk.delete(k),
+    };
+
+    (async () => {
+      const store = new Engine.BrowserLedgerStore({ localStorage: fakeLocalStorage, indexedDB: null });
+      await store.init();
+
+      const book = await store.createBook({ title: "Bible Novel" });
+      const lore = await store.saveBibleEntry(book.id, {
+        kind: "lore", name: "The tide-clock", description: "Runs on ballast stones.", tags: "world,  mechanics",
+      });
+      const mira = await store.saveBibleEntry(book.id, {
+        kind: "character", name: "Mira Quill", description: "Cartographer.",
+      });
+      const place = await store.saveBibleEntry(book.id, {
+        kind: "place", name: "Port Veridian",
+      });
+
+      assert.strictEqual(lore.tags, "world, mechanics");
+      const listed = await store.listBibleEntries(book.id);
+      assert.deepStrictEqual(listed.map(e => e.kind), ["character", "place", "lore"]);
+
+      const bookPayload = await store.getBook(book.id);
+      assert.strictEqual(bookPayload.bible.length, 3);
+
+      // Editing keeps the identity, updates the content.
+      const edited = await store.saveBibleEntry(book.id, {
+        id: mira.id, kind: "character", name: "Mira Quill", description: "Cartographer who lies about the sea.",
+      });
+      assert.strictEqual(edited.id, mira.id);
+      assert.strictEqual(edited.created_at, mira.created_at);
+      assert(edited.description.includes("lies about the sea"));
+
+      // Validation
+      await assert.rejects(() => store.saveBibleEntry(book.id, { kind: "character", name: "  " }), /name/i);
+      await assert.rejects(() => store.saveBibleEntry(9999, { name: "Ghost" }), /book not found/i);
+
+      // Bible notes never appear in the compliance audit trail.
+      const audit = await store.getGlobalAuditLog();
+      assert(!audit.some(e => String(e.event_type).includes("bible")));
+
+      // Reload in a fresh store (same localStorage = same browser).
+      const reopened = new Engine.BrowserLedgerStore({ localStorage: fakeLocalStorage, indexedDB: null });
+      await reopened.init();
+      const reloaded = await reopened.listBibleEntries(book.id);
+      assert.strictEqual(reloaded.length, 3);
+      assert.strictEqual(reloaded[0].name, "Mira Quill");
+
+      // Backup round-trip preserves bible entries under new ids.
+      const backup = await reopened.exportBackup();
+      const fresh = new Engine.BrowserLedgerStore({
+        localStorage: { getItem: () => null, setItem: () => {} }, indexedDB: null,
+      });
+      await fresh.importBackup(backup);
+      const importedBooks = await fresh.listBooks();
+      const importedBible = await fresh.listBibleEntries(importedBooks[0].id);
+      assert.strictEqual(importedBible.length, 3);
+      assert(importedBible.some(e => e.name === "The tide-clock"));
+
+      // Deleting an entry, then the whole book, cleans up bible rows only.
+      await fresh.deleteBibleEntry(importedBible[0].id);
+      assert.strictEqual((await fresh.listBibleEntries(importedBooks[0].id)).length, 2);
+      await fresh.deleteBook(importedBooks[0].id);
+      assert.deepStrictEqual(await fresh.listBibleEntries(importedBooks[0].id), []);
+
+      // Older backups without a bible array still import cleanly.
+      const legacy = {
+        format: "authorledger-browser-backup",
+        data: {
+          schemaVersion: 1,
+          seq: { book: 1, chapter: 1, snapshot: 0, audit: 0 },
+          books: [{ id: 1, title: "Legacy Book", created_at: "2026-01-01T00:00:00+00:00" }],
+          chapters: [{ id: 1, book_id: 1, title: "Old", text: "old words", position: 0,
+                       classification: "human", status: "final" }],
+          snapshots: [], audit_log: [],
+        },
+      };
+      const legacyStore = new Engine.BrowserLedgerStore({
+        localStorage: { getItem: () => null, setItem: () => {} }, indexedDB: null,
+      });
+      const result = await legacyStore.importBackup(legacy);
+      assert.strictEqual(result.importedBooks, 1);
+      const legacyBooks = await legacyStore.listBooks();
+      assert.strictEqual(legacyBooks[0].title, "Legacy Book");
+
+      console.log("STORY_BIBLE_ENGINE_OK");
+    })().catch(err => {
+      console.error(err);
+      process.exit(1);
+    });
+    """
+    proc = subprocess.run(
+        ["node", "-e", node_script, str(ENGINE_PATH)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "STORY_BIBLE_ENGINE_OK" in proc.stdout

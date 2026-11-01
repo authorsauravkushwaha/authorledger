@@ -51,6 +51,70 @@
     "stands as a", "serves as a reminder",
   ];
 
+  // ---- Story Bible ---------------------------------------------------
+  // The story bible is craft data, not compliance data: it never touches
+  // the append-only audit log, because a character note is not a fact
+  // about how a chapter was written.
+  const BIBLE_KINDS = ["character", "place", "lore", "plot"];
+  const BIBLE_KIND_LABELS = {
+    character: "Character",
+    place: "Place",
+    lore: "Lore",
+    plot: "Plot beat",
+  };
+
+  // ---- Line Edit heuristics ------------------------------------------
+  // Deliberately named "style marks", never "errors" or "AI signals".
+  const LINT_FILTER_WORDS = [
+    "felt", "feel", "saw", "see", "heard", "hear", "noticed", "realized",
+    "realised", "seemed", "seem", "watched", "looked", "thought", "knew",
+    "wondered", "wonder", "decided", "began to", "started to", "could see",
+    "could hear", "could feel",
+  ];
+
+  const LINT_INTENSIFIERS = [
+    "very", "really", "quite", "rather", "somewhat", "just", "actually",
+    "basically", "literally", "suddenly", "immediately", "simply", "totally",
+    "definitely", "truly", "extremely", "completely", "absolutely",
+  ];
+
+  const LINT_ADVERB_EXCEPTIONS = new Set([
+    "only", "family", "early", "belly", "holy", "reply", "apply", "supply",
+    "likely", "lovely", "lonely", "friendly", "silly", "ugly", "daily",
+    "weekly", "monthly", "yearly", "ally", "rally", "jelly", "rely", "fly",
+    "multiply", "imply", "comply", "supply", "assembly", "anomaly", "italy",
+    "july", "polly", "sally", "molly", "dolly", "monopoly", "melancholy",
+  ]);
+
+  const LINT_PAST_PARTICIPLES = [
+    "seen", "taken", "given", "made", "done", "known", "shown", "held",
+    "told", "brought", "written", "found", "kept", "left", "sent", "built",
+    "broken", "chosen", "driven", "eaten", "fallen", "forgotten", "gotten",
+    "hidden", "lost", "paid", "said", "sold", "spent", "stolen", "struck",
+    "thrown", "understood", "woken", "worn", "heard", "felt", "thought",
+    "caught", "taught", "bought", "fought", "sought", "begun", "drunk",
+    "rung", "sung", "swum", "torn", "sworn", "born", "shut", "cut", "put",
+  ];
+
+  const LINT_CLICHES = [
+    "at the end of the day", "little did she know", "little did he know",
+    "heart pounded", "heart skipped a beat", "let out a breath",
+    "let out a sigh", "a shiver ran down", "time seemed to slow",
+    "eyes widened", "butterflies in her stomach", "butterflies in his stomach",
+    "calm before the storm", "only time will tell", "as luck would have it",
+    "dead of night", "pale as a ghost", "quiet as a mouse", "sharp as a tack",
+    "white as snow", "cold as ice", "in the nick of time",
+    "breath she didn't know she was holding", "breath he didn't know he was holding",
+    "all hell broke loose", "avoid like the plague", "light at the end of the tunnel",
+    "tip of the iceberg", "raining cats and dogs", "bated breath",
+  ];
+
+  const LINT_FANCY_TAGS = [
+    "exclaimed", "declared", "interjected", "opined", "retorted", "chortled",
+    "hissed", "growled", "breathed", "ejaculated", "vociferated", "posited",
+    "interposed", "effused", "spat",
+  ];
+
   const DB_NAME = "authorledger_studio_v1";
   const DB_VERSION = 1;
   const MIRROR_KEY = "authorledger_mirror_v1";
@@ -58,6 +122,17 @@
 
   function nowIso() {
     return new Date().toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  }
+
+  function sortBibleEntries(entries) {
+    const kindOrder = new Map(BIBLE_KINDS.map((kind, index) => [kind, index]));
+    return entries
+      .slice()
+      .sort((a, b) =>
+        (kindOrder.get(a.kind) ?? 99) - (kindOrder.get(b.kind) ?? 99) ||
+        String(a.name || "").localeCompare(String(b.name || "")) ||
+        a.id - b.id
+      );
   }
 
   function countWords(text) {
@@ -322,6 +397,397 @@
         adverbs_per_1000: adverbPer1000,
       },
       bullets,
+    };
+  }
+
+  // ------------------------------------------------ Line Edit (prose) --
+  //
+  // A plain-language copy-editing pass: the kinds of tics a good
+  // developmental editor circles in pencil. It is explicitly NOT a
+  // detector and never produces a score or verdict about authorship.
+
+  const LINT_MAX_EXAMPLES = 6;
+  const LINT_MAX_SCANNED = 400;
+
+  function escapeRegex(literal) {
+    return String(literal).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function sentenceContext(text, index, length) {
+    const before = [
+      text.lastIndexOf(".", Math.max(0, index - 1)),
+      text.lastIndexOf("!", Math.max(0, index - 1)),
+      text.lastIndexOf("?", Math.max(0, index - 1)),
+      text.lastIndexOf("\n", Math.max(0, index - 1)),
+    ];
+    const start = Math.max(0, Math.max(...before) + 1);
+    let end = text.length;
+    for (const mark of [".", "!", "?", "\n"]) {
+      const at = text.indexOf(mark, index + length);
+      if (at !== -1 && at + 1 < end) end = at + 1;
+    }
+    const snippet = text.slice(start, end).replace(/\s+/g, " ").trim();
+    if (snippet.length <= 190) return snippet;
+    const relative = Math.max(0, index - start);
+    const from = Math.max(0, relative - 70);
+    return `${from > 0 ? "…" : ""}${snippet.slice(from, from + 180).trim()}${from + 180 < snippet.length ? "…" : ""}`;
+  }
+
+  function scanPattern(text, regex) {
+    const findings = [];
+    regex.lastIndex = 0;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      if (findings.length >= LINT_MAX_SCANNED) break;
+      findings.push({
+        match: match[0],
+        index: match.index,
+        context: sentenceContext(text, match.index, match[0].length),
+      });
+      if (regex.lastIndex === match.index) regex.lastIndex += 1;
+    }
+    return findings;
+  }
+
+  function phraseRegex(phrases) {
+    const ordered = phrases.slice().sort((a, b) => b.length - a.length);
+    return new RegExp(`\\b(?:${ordered.map(escapeRegex).join("|")})\\b`, "gi");
+  }
+
+  function lintAdverbs(text) {
+    const regex = /\b[A-Za-z]{4,}ly\b/g;
+    const findings = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const word = match[0].toLowerCase();
+      if (LINT_ADVERB_EXCEPTIONS.has(word)) continue;
+      findings.push({
+        match: match[0],
+        index: match.index,
+        context: sentenceContext(text, match.index, match[0].length),
+      });
+      if (findings.length >= LINT_MAX_SCANNED) break;
+    }
+    return findings;
+  }
+
+  function lintRepeatedOpeners(text, sentences) {
+    const groups = new Map();
+    let cursor = 0;
+    for (const sentence of sentences) {
+      const at = text.indexOf(sentence, cursor);
+      if (at !== -1) cursor = at + sentence.length;
+      const first = (tokenizeWords(sentence)[0] || "");
+      if (!first || first.length < 2) continue;
+      const entry = groups.get(first) || { count: 0, index: at === -1 ? null : at };
+      entry.count += 1;
+      groups.set(first, entry);
+    }
+    return [...groups.entries()]
+      .filter(([, entry]) => entry.count >= 3)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 8)
+      .map(([word, entry]) => ({
+        match: word,
+        index: entry.index,
+        count: entry.count,
+        context: `${entry.count} sentences begin with “${word}”`,
+      }));
+  }
+
+  function lintLongSentences(text, sentences) {
+    const findings = [];
+    let cursor = 0;
+    for (const sentence of sentences) {
+      const at = text.indexOf(sentence, cursor);
+      if (at !== -1) cursor = at + sentence.length;
+      const length = countWords(sentence);
+      if (length < 45) continue;
+      findings.push({
+        match: sentence.length > 90 ? `${sentence.slice(0, 88).trim()}…` : sentence,
+        index: at === -1 ? null : at,
+        word_count: length,
+        context: `${length} words in one sentence`,
+      });
+    }
+    return findings.sort((a, b) => b.word_count - a.word_count).slice(0, 12);
+  }
+
+  function lintLongParagraphs(text) {
+    const regex = /[^\n]+(?:\n(?!\n)[^\n]+)*/g;
+    const findings = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const block = match[0].trim();
+      if (!block) continue;
+      const length = countWords(block);
+      if (length < 180) continue;
+      findings.push({
+        match: block.length > 90 ? `${block.slice(0, 88).replace(/\s+/g, " ")}…` : block,
+        index: match.index,
+        context: `${length} words in one paragraph`,
+      });
+    }
+    return findings;
+  }
+
+  function lintProse(rawText) {
+    const text = String(rawText || "");
+    if (!text.trim()) {
+      return {
+        word_count: 0,
+        sentence_count: 0,
+        paragraph_count: 0,
+        style_marks: 0,
+        structure_marks: 0,
+        adverb_rate_per_1000: 0,
+        categories: [],
+        summary: "Write or paste some prose first — then the line edit will read it back to you.",
+      };
+    }
+
+    const wordCount = countWords(text);
+    const sentences = splitSentences(text);
+    const paragraphCount = countParagraphs(text);
+
+    const filterWords = scanPattern(text, phraseRegex(LINT_FILTER_WORDS));
+    const intensifiers = scanPattern(text, phraseRegex(LINT_INTENSIFIERS));
+    const adverbs = lintAdverbs(text);
+    const passive = scanPattern(
+      text,
+      new RegExp(
+        `\\b(?:was|were|is|are|been|being|be|am)\\s+(?:(?:\\w+ed)|(?:${LINT_PAST_PARTICIPLES.join("|")}))\\b`,
+        "gi"
+      )
+    );
+    const dialogueTags = scanPattern(text, phraseRegex(LINT_FANCY_TAGS)).concat(
+      scanPattern(
+        text,
+        /\b(?:said|asked|replied|answered|shouted|whispered|muttered|murmured|exclaimed|declared|announced|insisted|snapped|hissed|growled|laughed|smiled|nodded|shrugged)\s+\w+ly\b/gi
+      )
+    ).sort((a, b) => a.index - b.index);
+    const cliches = scanPattern(text, phraseRegex(LINT_CLICHES));
+    const repeatedOpeners = lintRepeatedOpeners(text, sentences);
+    const longSentences = lintLongSentences(text, sentences);
+    const longParagraphs = lintLongParagraphs(text);
+
+    const adverbRate = wordCount ? roundTo((adverbs.length / wordCount) * 1000, 1) : 0;
+
+    const category = (key, label, group, note, findings, extra = {}) => ({
+      key,
+      label,
+      group,
+      note,
+      count: findings.length,
+      examples: findings.slice(0, LINT_MAX_EXAMPLES),
+      capped: findings.length >= LINT_MAX_SCANNED,
+      ...extra,
+    });
+
+    const categories = [
+      category(
+        "filter_words", "Filter words", "style",
+        "Words like “felt”, “saw”, and “noticed” put a pane of glass between the reader and the moment. Often you can cut straight to what was felt.",
+        filterWords
+      ),
+      category(
+        "intensifiers", "Intensifiers", "style",
+        "“Very”, “really”, “suddenly”: each one asks the adjective or verb to work harder. The strongest version is usually the one without them.",
+        intensifiers
+      ),
+      category(
+        "adverbs", "-ly adverbs", "style",
+        "Adverbs aren’t banned — but a cluster of them often marks a verb that could be sharper.",
+        adverbs,
+        { rate_per_1000: adverbRate }
+      ),
+      category(
+        "passive_voice", "Possible passive voice", "style",
+        "A rough pattern match, not a grammar checker. Some passive sentences are exactly right; check each one rather than fixing blindly.",
+        passive
+      ),
+      category(
+        "dialogue_tags", "Dialogue tags", "style",
+        "Fancy tags and adverbs after “said” pull focus from the line itself. Plain “said” disappears, which is usually the point.",
+        dialogueTags
+      ),
+      category(
+        "cliches", "Worn phrases", "style",
+        "Phrases readers have met a thousand times. Sometimes the familiar beat is what you want — often it’s a placeholder for a fresher image.",
+        cliches
+      ),
+      category(
+        "repeated_openers", "Repeated sentence openers", "structure",
+        "Several sentences starting the same way can read as rhythm… or as a rut. Worth a look either way.",
+        repeatedOpeners
+      ),
+      category(
+        "long_sentences", "Very long sentences", "structure",
+        "Sentences past 45 words ask a lot of a reader. Read them aloud — if you run out of breath, so do they.",
+        longSentences
+      ),
+      category(
+        "long_paragraphs", "Dense paragraphs", "structure",
+        "Paragraphs past 180 words become a wall on the page. A break at a turn of thought or image keeps the page inviting.",
+        longParagraphs
+      ),
+    ];
+
+    const styleMarks = categories
+      .filter((c) => c.group === "style")
+      .reduce((sum, c) => sum + c.count, 0);
+    const structureMarks = categories
+      .filter((c) => c.group === "structure")
+      .reduce((sum, c) => sum + c.count, 0);
+
+    const summary = styleMarks + structureMarks === 0
+      ? `Clean pass: ${wordCount.toLocaleString()} words, ${sentences.length} sentences, no marks from this checklist.`
+      : `${wordCount.toLocaleString()} words scanned · ${styleMarks} style mark${styleMarks === 1 ? "" : "s"} and ${structureMarks} pacing note${structureMarks === 1 ? "" : "s"} across ${sentences.length} sentences.`;
+
+    return {
+      word_count: wordCount,
+      sentence_count: sentences.length,
+      paragraph_count: paragraphCount,
+      style_marks: styleMarks,
+      structure_marks: structureMarks,
+      adverb_rate_per_1000: adverbRate,
+      categories,
+      summary,
+    };
+  }
+
+  // --------------------------------------------- Manuscript Health -----
+  //
+  // A whole-book view of shape and readiness: chapter length, pacing
+  // outliers, and how much of the manuscript still needs an honest stamp.
+
+  function median(values) {
+    if (!values.length) return 0;
+    const sorted = values.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  function computeManuscriptHealth(chapters) {
+    const list = (chapters || []).map((chapter) => ({
+      id: chapter.id,
+      title: chapter.title || "Untitled chapter",
+      words: countWords(chapter.text),
+      status: VALID_CHAPTER_STATUSES.includes(chapter.status) ? chapter.status : "drafting",
+      classification: VALID_CLASSIFICATIONS.includes(chapter.classification)
+        ? chapter.classification
+        : "unclassified",
+    }));
+
+    const totalWords = list.reduce((sum, c) => sum + c.words, 0);
+    const written = list.filter((c) => c.words > 0);
+    const lengths = written.map((c) => c.words);
+    const average = written.length ? Math.round(totalWords / written.length) : 0;
+    const medianWords = Math.round(median(lengths));
+
+    let longest = null;
+    let shortest = null;
+    for (const chapter of written) {
+      if (!longest || chapter.words > longest.words) longest = chapter;
+      if (!shortest || chapter.words < shortest.words) shortest = chapter;
+    }
+
+    const thinThreshold = Math.max(500, Math.round(medianWords * 0.4));
+    const bloatedThreshold = Math.max(4000, Math.round(medianWords * 2.2));
+    // Outlier checks only make sense once there are at least two written
+    // chapters to compare — a lone chapter is not "short for this book".
+    const thinChapters = written.length >= 2
+      ? written.filter((c) => c.words < thinThreshold)
+      : [];
+    const bloatedChapters = written.length >= 2
+      ? written.filter((c) => c.words > bloatedThreshold)
+      : [];
+    const emptyChapters = list.filter((c) => c.words === 0);
+
+    const classificationWords = { human: 0, ai_assisted: 0, ai_generated: 0, unclassified: 0 };
+    for (const chapter of list) {
+      classificationWords[chapter.classification] += chapter.words;
+    }
+    const unclassifiedChapters = list.filter((c) => c.classification === "unclassified");
+    const unclassifiedWords = classificationWords.unclassified;
+
+    const finalChapters = list.filter((c) => c.status === "final").length;
+    const revisingChapters = list.filter((c) => c.status === "revising").length;
+
+    const distribution = list.map((chapter) => ({
+      id: chapter.id,
+      title: chapter.title,
+      words: chapter.words,
+      share: totalWords ? roundTo(chapter.words / totalWords, 3) : 0,
+      status: chapter.status,
+      classification: chapter.classification,
+    }));
+
+    const notes = [];
+    if (!list.length) {
+      notes.push("No chapters yet. Health shows up once there is shape to measure.");
+    } else {
+      notes.push(
+        `${list.length} chapter${list.length === 1 ? "" : "s"} · ${totalWords.toLocaleString()} words · ${average.toLocaleString()} average, ${medianWords.toLocaleString()} median.`
+      );
+      if (thinChapters.length) {
+        notes.push(
+          `${thinChapters.length} chapter${thinChapters.length === 1 ? " is" : "s are"} much shorter than the rest of the book (under ${thinThreshold.toLocaleString()} words). Sometimes that’s a deliberate beat; sometimes it’s a scene that wanted more room.`
+        );
+      }
+      if (bloatedChapters.length) {
+        notes.push(
+          `${bloatedChapters.length} chapter${bloatedChapters.length === 1 ? " runs" : "s run"} far longer than the others. Check whether it’s one chapter or two wearing a trench coat.`
+        );
+      }
+      if (emptyChapters.length) {
+        notes.push(
+          `${emptyChapters.length} chapter${emptyChapters.length === 1 ? " has" : "s have"} no text yet — placeholders are fine, but they’ll read as gaps in a draft export.`
+        );
+      }
+      if (!thinChapters.length && !bloatedChapters.length && !emptyChapters.length && written.length > 1) {
+        notes.push("Chapter lengths are consistent — pacing should feel steady for a reader moving straight through.");
+      }
+      if (unclassifiedChapters.length) {
+        notes.push(
+          `${unclassifiedChapters.length} chapter${unclassifiedChapters.length === 1 ? " is" : "s are"} still unclassified (${unclassifiedWords.toLocaleString()} words). The compliance report can’t be complete until every chapter has an honest stamp.`
+        );
+      } else {
+        notes.push("Every chapter has an honest classification — the compliance report is ready to export.");
+      }
+    }
+
+    let nextStep = "Add a chapter and start drafting.";
+    if (list.length) {
+      if (emptyChapters.length) {
+        nextStep = `Write “${emptyChapters[0].title}” — it’s the only thing standing between you and a complete draft.`;
+      } else if (unclassifiedChapters.length) {
+        nextStep = `Stamp “${unclassifiedChapters[0].title}” as human-written, AI-assisted, or AI-generated.`;
+      } else if (finalChapters < list.length) {
+        nextStep = `${list.length - finalChapters} chapter${list.length - finalChapters === 1 ? " isn’t" : "s aren’t"} marked final yet. Revise, then set the status so your own progress is honest.`;
+      } else {
+        nextStep = "Every chapter is final and stamped. Export the manuscript, then the compliance report.";
+      }
+    }
+
+    return {
+      chapter_count: list.length,
+      total_words: totalWords,
+      average_words: average,
+      median_words: medianWords,
+      longest,
+      shortest,
+      thin_chapters: thinChapters.map((c) => ({ id: c.id, title: c.title, words: c.words })),
+      bloated_chapters: bloatedChapters.map((c) => ({ id: c.id, title: c.title, words: c.words })),
+      empty_chapters: emptyChapters.map((c) => ({ id: c.id, title: c.title })),
+      unclassified_chapter_count: unclassifiedChapters.length,
+      unclassified_words: unclassifiedWords,
+      classification_words: classificationWords,
+      final_chapter_count: finalChapters,
+      revising_chapter_count: revisingChapters,
+      distribution,
+      notes,
+      next_step: nextStep,
     };
   }
 
@@ -625,11 +1091,12 @@
 
   function createEmptyDataset() {
     return {
-      schemaVersion: 1,
-      seq: { book: 0, chapter: 0, snapshot: 0, audit: 0 },
+      schemaVersion: 2,
+      seq: { book: 0, chapter: 0, snapshot: 0, audit: 0, bible: 0 },
       books: [],
       chapters: [],
       snapshots: [],
+      bible: [],
       audit_log: [],
     };
   }
@@ -707,6 +1174,9 @@
       base.books = Array.isArray(raw.books) ? raw.books : [];
       base.chapters = Array.isArray(raw.chapters) ? raw.chapters : [];
       base.snapshots = Array.isArray(raw.snapshots) ? raw.snapshots : [];
+      // `bible` arrived after the first schema, so older backups simply
+      // have no array to normalize — that must never throw or lose data.
+      base.bible = Array.isArray(raw.bible) ? raw.bible : [];
       base.audit_log = Array.isArray(raw.audit_log) ? raw.audit_log : [];
       const maxId = (arr) => arr.reduce((m, item) => Math.max(m, Number(item.id) || 0), 0);
       base.seq = {
@@ -714,7 +1184,9 @@
         chapter: Math.max(Number(raw.seq?.chapter) || 0, maxId(base.chapters)),
         snapshot: Math.max(Number(raw.seq?.snapshot) || 0, maxId(base.snapshots)),
         audit: Math.max(Number(raw.seq?.audit) || 0, maxId(base.audit_log)),
+        bible: Math.max(Number(raw.seq?.bible) || 0, maxId(base.bible)),
       };
+      base.schemaVersion = 2;
       base.updatedAt = raw.updatedAt || nowIso();
       return base;
     }
@@ -806,7 +1278,9 @@
         .filter((c) => c.book_id === id)
         .sort((a, b) => a.position - b.position || a.id - b.id)
         .map((c) => ({ ...c }));
-      return { ...book, chapters };
+      const bible = sortBibleEntries(this._data.bible.filter((entry) => entry.book_id === id))
+        .map((entry) => ({ ...entry }));
+      return { ...book, chapters, bible };
     }
 
     async createBook({ title, author_name = "", author_note = "", word_goal = 0 }) {
@@ -868,6 +1342,7 @@
       );
       this._data.chapters = this._data.chapters.filter((c) => c.book_id !== id);
       this._data.snapshots = this._data.snapshots.filter((s) => !chapterIds.has(s.chapter_id));
+      this._data.bible = this._data.bible.filter((entry) => entry.book_id !== id);
       this._data.books.splice(idx, 1);
 
       // Audit log is deliberately kept intact even after book deletion!
@@ -1150,6 +1625,77 @@
       return { ...chapter };
     }
 
+    // ---- Story Bible ----
+    //
+    // Craft notes about the people, places, and rules of a book. These
+    // are intentionally NOT written to the audit log: the ledger records
+    // how chapters were written, not what happens in them.
+
+    async listBibleEntries(bookId) {
+      await this.init();
+      const id = Number(bookId);
+      return sortBibleEntries(this._data.bible.filter((entry) => entry.book_id === id))
+        .map((entry) => ({ ...entry }));
+    }
+
+    async saveBibleEntry(bookId, payload = {}) {
+      await this.init();
+      const id = Number(bookId);
+      const book = this._data.books.find((b) => b.id === id);
+      if (!book) throw new Error("Book not found.");
+
+      const kind = BIBLE_KINDS.includes(payload.kind) ? payload.kind : "character";
+      const name = String(payload.name || "").trim();
+      if (!name) throw new Error("A story-bible entry needs a name.");
+      const description = String(payload.description || "").trim();
+      const tags = String(payload.tags || "")
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .join(", ");
+      const now = nowIso();
+
+      let entry = null;
+      if (payload.id !== undefined && payload.id !== null) {
+        entry = this._data.bible.find((item) => item.id === Number(payload.id) && item.book_id === id);
+        if (!entry) throw new Error("Story-bible entry not found.");
+      }
+
+      if (entry) {
+        entry.kind = kind;
+        entry.name = name;
+        entry.description = description;
+        entry.tags = tags;
+        entry.updated_at = now;
+      } else {
+        this._data.seq.bible += 1;
+        entry = {
+          id: this._data.seq.bible,
+          book_id: id,
+          kind,
+          name,
+          description,
+          tags,
+          created_at: now,
+          updated_at: now,
+        };
+        this._data.bible.push(entry);
+      }
+
+      await this._persist();
+      return { ...entry };
+    }
+
+    async deleteBibleEntry(entryId) {
+      await this.init();
+      const id = Number(entryId);
+      const idx = this._data.bible.findIndex((entry) => entry.id === id);
+      if (idx === -1) throw new Error("Story-bible entry not found.");
+      this._data.bible.splice(idx, 1);
+      await this._persist();
+      return { ok: true };
+    }
+
     // ---- Audit & Reports ----
 
     async getAuditLog(bookId) {
@@ -1263,6 +1809,24 @@
         }
       }
 
+      if (Array.isArray(payload.bible)) {
+        for (const srcEntry of payload.bible) {
+          const mappedBookId = bookIdMap.get(srcEntry.book_id);
+          if (!mappedBookId) continue;
+          this._data.seq.bible += 1;
+          this._data.bible.push({
+            id: this._data.seq.bible,
+            book_id: mappedBookId,
+            kind: BIBLE_KINDS.includes(srcEntry.kind) ? srcEntry.kind : "character",
+            name: String(srcEntry.name || "Untitled entry").trim() || "Untitled entry",
+            description: String(srcEntry.description || "").trim(),
+            tags: String(srcEntry.tags || "").trim(),
+            created_at: srcEntry.created_at || nowIso(),
+            updated_at: srcEntry.updated_at || nowIso(),
+          });
+        }
+      }
+
       if (Array.isArray(payload.audit_log)) {
         for (const entry of payload.audit_log) {
           this._data.seq.audit += 1;
@@ -1344,6 +1908,37 @@
           "Keep writing right here — try editing this chapter, toggling Focus Mode, saving a version snapshot, running the Writing Pattern Report, or stamping a classification below.",
       });
 
+      await this.saveBibleEntry(book.id, {
+        kind: "character",
+        name: "Mira Quill",
+        description: "Harbor cartographer, 31. Keeps a pocket book of tide times and lies about being afraid of deep water. Wants the northern folio back before the guild audit, mostly to prove she was right.",
+        tags: "protagonist, cartographer, Port Veridian",
+      });
+      await this.saveBibleEntry(book.id, {
+        kind: "character",
+        name: "Julian Vale",
+        description: "Night clerk at the observatory. Climbs stairs in wet boots, notices everything, volunteers very little. Owes Mira a debt he has never named.",
+        tags: "ally, observatory, secretive",
+      });
+      await this.saveBibleEntry(book.id, {
+        kind: "place",
+        name: "Port Veridian",
+        description: "A harbor town built on three hills of dry rope warehouses and brass instruments. Smells of tar and warm metal. The customs clerks argue about coal before sunrise.",
+        tags: "setting, harbor, book one",
+      });
+      await this.saveBibleEntry(book.id, {
+        kind: "lore",
+        name: "The tide-clock",
+        description: "A civic clock that runs on ballast stones rather than pendulums. Every ship that crosses the bar leaves a weighed tally at the south pier — the town's only honest ledger.",
+        tags: "worldbuilding, mechanics",
+      });
+      await this.saveBibleEntry(book.id, {
+        kind: "plot",
+        name: "The northern folio disappears",
+        description: "Act I turn: the chart is stolen before midnight, silver dividers left behind. The thief wanted the paper, not the instruments — which tells Mira who it was.",
+        tags: "act 1, inciting incident",
+      });
+
       return this.getBook(book.id);
     }
 
@@ -1420,6 +2015,10 @@
     estimateReadingMinutes,
     analyzeText,
     analyzeCraft,
+    lintProse,
+    computeManuscriptHealth,
+    BIBLE_KINDS,
+    BIBLE_KIND_LABELS,
     buildReport,
     reportToMarkdown,
     compileManuscript,
