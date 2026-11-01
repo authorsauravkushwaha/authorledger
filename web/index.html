@@ -5,228 +5,102 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="AuthorLedger — a detailed writing studio and honest AI-disclosure ledger: write books in your browser, autosave locally, stamp each chapter's AI use, and export KDP compliance reports from an append-only audit trail.">
 <title>AuthorLedger — Writing Studio &amp; AI Disclosure Ledger</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+<a class="skip-link" href="#desk">Skip to workspace</a>
 <header class="app-header" id="app-header">
-  <div class="header-brand-block">
-    <div class="wordmark">
-      <span class="wordmark-mark">§</span>
-      <h1>AuthorLedger</h1>
-      <span class="studio-pill">Writing Studio</span>
-    </div>
-    <p class="tagline">Write your books right here, save automatically in your browser, and keep an honest AI-disclosure paper trail.</p>
-  </div>
-
-  <nav class="header-nav" aria-label="Studio sections">
-    <button type="button" id="nav-home-btn" class="nav-btn">Studio home</button>
-    <button type="button" id="nav-write-btn" class="nav-btn">Write</button>
-    <button type="button" id="nav-ledger-btn" class="nav-btn">Ledger</button>
-    <button type="button" id="nav-reports-btn" class="nav-btn">Reports</button>
-    <button type="button" id="nav-guide-btn" class="nav-btn">Guide</button>
-  </nav>
-
+  <div class="header-location"><span class="location-icon">▦</span> Workspace <span class="crumb-divider">/</span> <strong id="workspace-location">Overview</strong></div>
   <div class="header-controls">
-    <div id="storage-indicator" class="storage-indicator" title="All writing and audit history saves automatically in your browser.">
-      <span class="status-dot"></span>
-      <span id="storage-indicator-text">Saved in browser</span>
-    </div>
-    <button type="button" id="theme-toggle-btn" class="btn btn-ghost btn-compact" title="Switch paper theme">
-      Paper: Ledger
-    </button>
-    <button type="button" id="llm-indicator" class="llm-indicator off" title="Configure optional Claude API key or view workspace settings">
-      Claude features: optional
-    </button>
+    <div id="storage-indicator" class="storage-indicator" title="Your work is saved on this device. Export a backup regularly."><span class="status-dot"></span><span id="storage-indicator-text">Saved in browser</span></div>
+    <button type="button" id="theme-toggle-btn" class="btn btn-ghost btn-compact" title="Switch paper theme">Paper: Ledger</button>
+    <button type="button" id="workspace-settings-btn" class="profile-button" aria-label="Workspace settings">W</button>
   </div>
 </header>
-
 <div class="app-body" id="app-body">
-
-  <aside class="shelf" id="shelf" aria-label="Book shelf and workspace backups">
-    <div class="shelf-header-row">
-      <h2 class="shelf-heading">Your books</h2>
-      <span id="shelf-summary" class="shelf-summary">0 books</span>
-    </div>
-
+  <aside class="shelf" id="shelf" aria-label="Studio navigation and book shelf">
+    <a class="wordmark" href="./" aria-label="AuthorLedger home"><span class="wordmark-mark">a<span>l</span></span><span class="brand-name">AuthorLedger<small>A LITTLE SPACE. BIG STORIES.</small></span></a>
+    <p class="sidebar-label">YOUR WORKSPACE</p>
+    <nav class="header-nav" aria-label="Studio sections">
+      <button type="button" id="nav-home-btn" class="nav-btn active"><span aria-hidden="true">▦</span> Overview</button>
+      <button type="button" id="nav-manuscripts-btn" class="nav-btn"><span aria-hidden="true">▤</span> My manuscripts</button>
+      <button type="button" id="nav-write-btn" class="nav-btn"><span aria-hidden="true">✎</span> Writing studio</button>
+      <button type="button" id="nav-ledger-btn" class="nav-btn"><span aria-hidden="true">▧</span> AI disclosure ledger</button>
+      <button type="button" id="nav-reports-btn" class="nav-btn"><span aria-hidden="true">◷</span> Reports &amp; exports</button>
+    </nav>
+    <div class="sidebar-divider"></div>
+    <div class="shelf-header-row"><h2 class="shelf-heading">YOUR BOOKS</h2><span id="shelf-summary" class="shelf-summary">0 books</span></div>
     <ul class="book-list" id="book-list"></ul>
-
     <form id="new-book-form" class="new-book-form">
-      <input type="text" id="new-book-title" placeholder="New book title…" aria-label="New book title" required>
+      <input type="text" id="new-book-title" placeholder="A new story starts here…" aria-label="New book title" required>
       <div class="new-book-extra">
-        <input type="text" id="new-book-author" placeholder="Author / pen name (optional)" aria-label="Author or pen name">
-        <input type="number" id="new-book-goal" min="0" step="500" placeholder="Word goal, e.g. 50000 (optional)" aria-label="Target word count goal">
+        <input type="text" id="new-book-author" placeholder="Author / pen name" aria-label="Author or pen name">
+        <input type="number" id="new-book-goal" min="0" step="500" placeholder="Word goal (optional)" aria-label="Target word count goal">
       </div>
-      <button type="submit">Add to shelf</button>
+      <button type="submit">+ New manuscript</button>
     </form>
-
-    <div class="shelf-archive">
-      <h3 class="shelf-subheading">Save &amp; portability</h3>
-      <p class="shelf-note">Your work saves automatically on this device. Export backups or manuscripts anytime.</p>
-      <a href="/api/backup" id="backup-download-link" class="backup-link" download="authorledger-backup.db">Download full backup</a>
-      <div class="shelf-tool-buttons">
-        <button type="button" id="restore-backup-btn" class="btn btn-ghost btn-block btn-compact">Restore backup (.json)</button>
-        <input type="file" id="restore-backup-input" accept=".json,application/json" hidden>
-        <button type="button" id="open-import-btn" class="btn btn-ghost btn-block btn-compact">Import manuscript (.md / .txt)</button>
-        <button type="button" id="global-audit-btn" class="btn btn-ghost btn-block btn-compact">All-books ledger history</button>
+    <div class="sidebar-bottom">
+      <div class="private-note"><span aria-hidden="true">♧</span><div><strong>Your words. Yours alone.</strong><p>Private by default. Saved on this device. Always exportable.</p></div></div>
+      <div class="shelf-archive">
+        <a href="/api/backup" id="backup-download-link" class="backup-link" download="authorledger-backup.db">↓ Back up your workspace</a>
+        <button type="button" id="restore-backup-btn" class="sidebar-text-btn">↺ Restore backup</button><input type="file" id="restore-backup-input" accept=".json,application/json" hidden>
+        <button type="button" id="open-import-btn" class="sidebar-text-btn">↥ Import manuscript</button>
+        <button type="button" id="global-audit-btn" class="sidebar-text-btn">▧ All-books ledger history</button>
       </div>
+      <button type="button" id="nav-guide-btn" class="sidebar-text-btn">ⓘ Studio guide &amp; help <span>↗</span></button>
+      <button type="button" id="llm-indicator" class="llm-indicator off">Claude features: optional</button>
+      <div class="sidebar-footer">MADE FOR THE WORDS ONLY YOU CAN WRITE.</div>
     </div>
   </aside>
-
   <main class="desk" id="desk">
 
     <!-- ============================ Studio Dashboard / Welcome Desk ==== -->
     <div class="empty-desk" id="empty-desk">
 
-      <section class="hero">
-        <div class="hero-copy">
-          <p class="empty-eyebrow">BROWSER-SAVED WRITING &amp; COMPLIANCE WORKSPACE</p>
-          <h2 class="empty-headline">Write boldly.<br>Keep an honest ledger.</h2>
-          <p class="empty-lede">AuthorLedger is a full writing studio that lives in your browser — chapters, goals, focus mode, version checkpoints — welded to a permanent, append-only record of exactly how each page was written. When Amazon KDP asks, you will have receipts instead of a guess.</p>
-          <div class="empty-actions">
-            <button type="button" id="focus-new-book-btn" class="btn btn-primary">+ Start a new book</button>
-            <button type="button" id="load-sample-btn" class="btn btn-ghost">Load sample book</button>
-            <button type="button" id="empty-import-btn" class="btn btn-ghost">Import .md / .txt draft</button>
-          </div>
-          <p class="hero-micro">No account. No upload. No subscription. Your browser is the vault — export everything, anytime.</p>
-          <ul class="hero-badges">
-            <li>Zero dependencies</li>
-            <li>Works fully offline</li>
-            <li>Append-only audit trail</li>
-            <li>KDP-ready reports</li>
-            <li>MIT licensed</li>
-          </ul>
-        </div>
-
-        <div class="hero-visual" aria-hidden="true">
-          <div class="hero-cover-stack scene3d">
-            <div class="scene3d-floor"></div>
-            <div class="scene3d-float">
-              <div class="scene3d-rig">
-                <div class="book3d book3d-hero-back">
-                  <div class="b3-face b3-back cover-tone-3"></div>
-                  <div class="b3-face b3-spine cover-tone-3"><span class="b3-spine-title">Ledger Vol. I</span></div>
-                  <div class="b3-face b3-pages"></div>
-                  <div class="b3-face b3-top"></div>
-                  <div class="b3-face b3-bottom"></div>
-                  <div class="b3-face b3-front cover-tone-3"></div>
-                </div>
-                <div class="book3d book3d-hero-front">
-                  <div class="b3-face b3-back cover-tone-1"></div>
-                  <div class="b3-face b3-spine cover-tone-1"><span class="b3-spine-title">The Honest Ledger</span></div>
-                  <div class="b3-face b3-pages"></div>
-                  <div class="b3-face b3-top"></div>
-                  <div class="b3-face b3-bottom"></div>
-                  <div class="b3-face b3-front cover-tone-1">
-                    <div class="hero-cover-frame">
-                      <span class="hero-cover-mark">§</span>
-                      <span class="hero-cover-title">The Honest Ledger</span>
-                      <span class="hero-cover-sub">a writer's studio &amp; paper trail</span>
-                      <span class="hero-cover-rule"></span>
-                      <span class="hero-cover-foot">MANUSCRIPT · EDITION I</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="scene3d-chip scene3d-chip-human">Human-written</div>
-                <div class="scene3d-chip scene3d-chip-assisted">AI-assisted</div>
-              </div>
-            </div>
-          </div>
-          <div class="hero-report-card">
-            <div class="hero-report-head">
-              <span class="hero-report-title">Suggested disclosure note</span>
-              <span class="hero-report-tag">KDP report</span>
-            </div>
-            <p class="hero-report-quote">“The majority of this work was written by hand. A minority of passages were AI-assisted during editing, and are logged chapter-by-chapter in the author's ledger…”</p>
-            <div class="hero-report-rows">
-              <div class="hero-report-row"><span>Human-written</span><strong class="tone-human">72%</strong></div>
-              <div class="hero-report-row"><span>AI-assisted</span><strong class="tone-assisted">21%</strong></div>
-              <div class="hero-report-row"><span>AI-generated</span><strong class="tone-generated">7%</strong></div>
-            </div>
-            <div class="hero-stamp-row">
-              <span class="stamp stamp-human">Human-written</span>
-              <span class="stamp stamp-ai_assisted">AI-assisted</span>
-              <span class="stamp stamp-ai_generated">AI-generated</span>
-            </div>
-            <div class="hero-ticker">
-              <div class="hero-ticker-row"><span class="hero-ticker-time">09:41</span><span>chapter_finalized · Ch. 12 “Salt &amp; Iron”</span></div>
-              <div class="hero-ticker-row"><span class="hero-ticker-time">09:38</span><span>classification_logged · ai_assisted</span></div>
-              <div class="hero-ticker-row"><span class="hero-ticker-time">08:55</span><span>snapshot_saved · before line edit</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="dash-stats" aria-label="Workspace statistics">
-        <div class="dash-stat-card">
-          <div class="dash-stat-value" id="dash-stat-books">0</div>
-          <div class="dash-stat-label">Books on shelf</div>
-          <div class="dash-stat-note">novels, non-fiction &amp; collections</div>
-        </div>
-        <div class="dash-stat-card">
-          <div class="dash-stat-value" id="dash-stat-chapters">0</div>
-          <div class="dash-stat-label">Chapters drafted</div>
-          <div class="dash-stat-note">across every manuscript</div>
-        </div>
-        <div class="dash-stat-card">
-          <div class="dash-stat-value" id="dash-stat-words">0</div>
-          <div class="dash-stat-label">Words written</div>
-          <div class="dash-stat-note">counted live as you type</div>
-        </div>
-        <div class="dash-stat-card">
-          <div class="dash-stat-value" id="dash-stat-readtime">0m</div>
-          <div class="dash-stat-label">Reading time</div>
-          <div class="dash-stat-note">at ~230 words per minute</div>
-        </div>
-        <div class="dash-stat-card">
-          <div class="dash-stat-value" id="dash-stat-ledger">0</div>
-          <div class="dash-stat-label">Ledger entries</div>
-          <div class="dash-stat-note">append-only, never rewritten</div>
-        </div>
-      </section>
-
-      <section class="dash-section" id="dash-shelf-section">
-        <div class="dash-section-head">
-          <h3 class="dash-section-title">Your shelf</h3>
-          <p class="dash-section-sub">Every manuscript in this workspace, with live progress against its word goal.</p>
-        </div>
-        <div class="dash-shelf" id="dash-shelf"></div>
-        <p class="dash-empty muted-note" id="dash-shelf-empty">Your shelf is empty — create your first book above, load the sample, or import an existing draft.</p>
-      </section>
-
-      <section class="dash-section">
-        <div class="dash-section-head">
-          <h3 class="dash-section-title">Studio activity</h3>
-          <p class="dash-section-sub">A real record, not a vibe — writing days and ledger events from your own history.</p>
-        </div>
-        <div class="dash-panels">
-          <div class="panel-card">
-            <div class="panel-card-head">
-              <h4>Writing activity</h4>
-              <span class="panel-card-note">last 26 weeks</span>
-            </div>
-            <div class="dash-heatmap" id="dash-heatmap" aria-label="Writing activity heatmap"></div>
-            <div class="heat-legend">
-              <span class="heat-legend-label">Quiet</span>
-              <span class="heat-cell heat-0"></span>
-              <span class="heat-cell heat-1"></span>
-              <span class="heat-cell heat-2"></span>
-              <span class="heat-cell heat-3"></span>
-              <span class="heat-cell heat-4"></span>
-              <span class="heat-legend-label">Busy</span>
-            </div>
-          </div>
-          <div class="panel-card">
-            <div class="panel-card-head">
-              <h4>Recent ledger entries</h4>
-              <button type="button" id="dash-ledger-btn" class="btn btn-ghost btn-compact">Open full history</button>
-            </div>
-            <ol class="dash-activity-feed" id="dash-activity-feed"></ol>
-            <p class="dash-empty muted-note" id="dash-feed-empty">No ledger events yet — they appear here automatically the moment you write, classify, or snapshot a chapter.</p>
-          </div>
-        </div>
-      </section>
-
+      <div class="welcome-heading"><div><p class="page-eyebrow">YOUR WRITING LIFE, ALL IN ONE PLACE</p><h2>Room for your next chapter<span>.</span></h2><p>A quiet space to write, a clear path to publish.</p></div><time id="studio-date"></time></div>
+      <div class="dashboard-layout">
+      <div class="dashboard-main">
+        <section class="hero">
+          <div class="hero-copy"><p class="empty-eyebrow"><span></span> THE WORLD NEEDS YOUR STORY</p><h2 class="empty-headline">Big ideas.<br>One word at a time.</h2><p class="empty-lede">From the first spark to the final draft.<br>Make something only you could write.</p>
+          <div class="empty-actions"><button type="button" id="focus-new-book-btn" class="btn btn-primary">+ Start a manuscript</button><button type="button" id="load-sample-btn" class="sample-link">Explore a sample <span>↗</span></button></div>
+          <p class="hero-micro">No account. No subscription. Just you and your words.</p></div>
+          <img class="studio-art" src="studio-art.svg" alt="Illustrated clothbound books, a pencil and a warm cup of coffee">
+        </section>
+        <section class="dash-stats" aria-label="Workspace statistics">
+          <div class="dash-stat-card"><span class="stat-icon">▤</span><div class="dash-stat-label">Manuscripts</div><div class="dash-stat-value" id="dash-stat-books">0</div><div class="dash-stat-note">Stories in the making</div></div>
+          <div class="dash-stat-card"><span class="stat-icon">✎</span><div class="dash-stat-label">Words written</div><div class="dash-stat-value" id="dash-stat-words">0</div><div class="dash-stat-note">Every word is a step forward</div></div>
+          <div class="dash-stat-card"><span class="stat-icon">▥</span><div class="dash-stat-label">Chapters</div><div class="dash-stat-value" id="dash-stat-chapters">0</div><div class="dash-stat-note">One page at a time</div></div>
+          <div class="dash-stat-card"><span class="stat-icon">◷</span><div class="dash-stat-label">Reading time</div><div class="dash-stat-value" id="dash-stat-readtime">0m</div><div class="dash-stat-note">Your world, in words</div></div>
+        </section>
+        <section class="dash-section manuscript-section" id="dash-shelf-section">
+          <div class="dash-section-head"><div><h3 class="dash-section-title">Your manuscripts <span id="manuscript-count" class="count-pill">0</span></h3><p class="dash-section-sub">A home for every story you’re bringing to life.</p></div><button type="button" id="empty-import-btn" class="btn btn-ghost btn-compact">↥ Import draft</button></div>
+          <div class="shelf-toolbar"><label class="manuscript-search"><span aria-hidden="true">⌕</span><input type="search" id="manuscript-search" placeholder="Find a manuscript…" aria-label="Find a manuscript"></label><select id="manuscript-sort" aria-label="Sort manuscripts"><option value="recent">Recently updated</option><option value="title">Title A–Z</option><option value="words">Most words</option></select></div>
+          <div class="dash-shelf" id="dash-shelf"></div>
+          <div class="dash-empty" id="dash-shelf-empty"><div class="empty-book-icon">✎</div><h4>Every great book starts with a blank page.</h4><p>Your first manuscript belongs right here.<br>Give it a title. The rest will come, one word at a time.</p><button type="button" id="shelf-create-btn" class="text-link">Create your first manuscript <span>→</span></button></div>
+          <p id="shelf-no-results" class="muted-note" hidden>No manuscripts match your search. Try a different title.</p>
+        </section>
+        <section class="dash-section activity-section">
+          <div class="dash-section-head"><div><h3 class="dash-section-title">Small steps. Real progress.</h3><p class="dash-section-sub">Your ledger activity over the last 26 weeks.</p></div><span class="activity-key"><i></i> A day you showed up</span></div>
+          <div class="heatmap-months" aria-hidden="true"><span>26 weeks ago</span><span>Today</span></div>
+          <div class="dash-heatmap" id="dash-heatmap" aria-label="Ledger activity heatmap"></div><div class="heat-legend"><span class="heat-legend-label">Less</span><span class="heat-cell heat-0"></span><span class="heat-cell heat-1"></span><span class="heat-cell heat-2"></span><span class="heat-cell heat-3"></span><span class="heat-cell heat-4"></span><span class="heat-legend-label">More</span></div>
+        </section>
+        <section class="disclosure-banner"><span class="disclosure-icon">♧</span><div><h3>Your story. An honest record.</h3><p>Track AI assistance as you write. Publish with clarity and confidence.</p></div><button type="button" id="disclosure-open-btn" class="text-link">Open ledger →</button></section>
+      </div>
+      <aside class="dashboard-rail" aria-label="Writing goals and tools">
+        <section class="rail-card goal-card"><div class="rail-heading"><h3>Your daily intention</h3><button type="button" id="edit-daily-goal-btn" class="icon-button" aria-label="Edit daily word goal">⚙</button></div><p>A little progress, every day.</p>
+          <div class="goal-ring"><svg viewBox="0 0 160 160" aria-hidden="true"><circle class="ring-track" cx="80" cy="80" r="69"/><circle id="daily-goal-ring" class="ring-value" cx="80" cy="80" r="69" pathLength="100"/></svg><div><strong id="daily-words">0</strong><span>of <span id="daily-goal-label">500</span> words</span></div></div>
+          <p class="goal-encouragement" id="goal-encouragement">A blank page is full of possibility.</p><button type="button" id="daily-write-btn" class="btn btn-primary btn-block">Let’s write <span>→</span></button>
+          <form id="daily-goal-form" hidden><label for="daily-goal-input">Daily word goal</label><div><input type="number" id="daily-goal-input" min="1" max="100000" value="500" required><button class="btn btn-primary" type="submit">Save</button></div></form>
+        </section>
+        <section class="rail-card timer-card"><div class="rail-heading"><h3>A moment of focus</h3><span aria-hidden="true">◴</span></div><p>Less noise. More words.</p><div id="focus-clock" class="focus-clock" role="timer" aria-label="Focus timer">25:00</div><div class="timer-controls"><button type="button" id="start-focus-btn" class="btn btn-ghost">▷ Start session</button><button type="button" id="reset-focus-btn" class="icon-button" aria-label="Reset focus timer">↺</button></div><p id="focus-session-note" class="timer-note" aria-live="polite">25 minutes, just for your story.</p></section>
+        <section class="rail-card quick-tools"><h3>Made for your next step</h3><button type="button" id="tools-export-btn"><span class="tool-icon">↗</span><span><strong>Export your work</strong><small>Your words, any format.</small></span><span>›</span></button><button type="button" id="tools-craft-btn"><span class="tool-icon">✧</span><span><strong>Polish your prose</strong><small>Find your rhythm &amp; voice.</small></span><span>›</span></button><button type="button" id="tools-guide-btn"><span class="tool-icon">▤</span><span><strong>The author’s toolkit</strong><small>Get to know your studio.</small></span><span>›</span></button></section>
+        <figure class="writer-quote"><span aria-hidden="true">“</span><blockquote>You can make anything<br>by writing.</blockquote><figcaption>— C. S. LEWIS</figcaption><div class="quote-ornament">✧</div></figure>
+      </aside>
+      </div>
+      <section class="dash-section recent-section"><div class="dash-section-head"><div><h3 class="dash-section-title">Your paper trail</h3><p class="dash-section-sub"><span id="dash-stat-ledger">0</span> entries. An honest record of your creative process.</p></div><button type="button" id="dash-ledger-btn" class="text-link">View all activity →</button></div><ol class="dash-activity-feed" id="dash-activity-feed"></ol><p class="dash-empty muted-note" id="dash-feed-empty">Your story hasn’t started here yet. Create a manuscript and your milestones will appear here.</p></section>
+      <details class="studio-guide" id="studio-guide"><summary>Inside your studio <span>Writing tools, publishing guidance &amp; frequently asked questions ↓</span></summary>
       <section class="dash-section" id="feature-tour">
         <div class="dash-section-head">
           <h3 class="dash-section-title">Everything the studio does</h3>
@@ -381,6 +255,7 @@
         </div>
       </section>
 
+      </details>
       <footer class="desk-footer">
         <p class="footer-note"><strong>Disclaimer:</strong> AuthorLedger is not legal advice and has no relationship with Amazon or KDP. It generates records and suggestions based entirely on what <em>you</em> tell it. Always check Amazon KDP's current content guidelines before publishing.</p>
         <p class="footer-note">Built by Saurav Kushwaha — a published author of 90+ books and a Computer Science (AI &amp; ML) student, building the tools he'd actually use. Open source under the MIT license.</p>
@@ -755,6 +630,15 @@
         Everything you write is saved privately inside this browser using IndexedDB (with a synchronous localStorage mirror). Nothing is uploaded to any external server. Use "Download full backup" on the shelf anytime to keep an offline copy.
       </p>
     </div>
+    <section class="settings-section">
+      <h3>Your workspace, safely backed up</h3>
+      <p class="modal-note">Browser storage is local to this device and can be cleared. Download regular backups to keep an independent copy of your manuscripts and ledger.</p>
+      <div class="settings-backup-actions">
+        <button type="button" id="settings-backup-btn" class="btn btn-primary">Download full backup</button>
+        <button type="button" id="settings-restore-btn" class="btn btn-ghost">Restore backup (.json)</button>
+        <button type="button" id="settings-import-btn" class="btn btn-ghost">Import manuscript</button>
+      </div>
+    </section>
     <form id="settings-form" class="settings-section">
       <h3>Optional: Claude API key (browser-only)</h3>
       <p class="modal-note">

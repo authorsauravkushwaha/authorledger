@@ -69,6 +69,7 @@
       // while allowing us to inspect whether Python's AuthorLedger/1.0 server is running.
       const probe = await fetch("./", { method: "GET", cache: "no-store" });
       const serverHeader = probe.headers.get("Server") || "";
+      await probe.text(); // Drain the probe body so its connection can finish.
       if (serverHeader.includes("AuthorLedger")) {
         const status = await api("/api/status");
         state.serverLlmConfigured = Boolean(status.llm_configured);
@@ -269,6 +270,7 @@
   async function boot() {
     applyPreferences();
     wireStaticEvents();
+    wireStudioEvents();
     state.mode = await detectBackendMode();
     if (state.mode === "browser") {
       await state.store.init();
@@ -405,11 +407,21 @@
   }
 
   function renderDashShelf(books) {
+    document.getElementById("manuscript-count").textContent = String(books.length);
+    const query = document.getElementById("manuscript-search").value.trim().toLowerCase();
+    const sort = document.getElementById("manuscript-sort").value;
+    const allCount = books.length;
+    books = books.filter((book) => `${book.title} ${book.author_name || ""}`.toLowerCase().includes(query));
+    books = [...books].sort((a, b) => sort === "title"
+      ? a.title.localeCompare(b.title)
+      : sort === "words" ? (b.word_count || 0) - (a.word_count || 0)
+      : String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || "")));
+    document.getElementById("shelf-no-results").hidden = !(allCount && !books.length);
     const grid = document.getElementById("dash-shelf");
     const empty = document.getElementById("dash-shelf-empty");
     grid.innerHTML = "";
     if (!books.length) {
-      empty.hidden = false;
+      empty.hidden = allCount > 0;
       return;
     }
     empty.hidden = true;
@@ -418,6 +430,8 @@
       const card = document.createElement("article");
       card.className = "dash-book-card";
       card.tabIndex = 0;
+      card.setAttribute("role", "button");
+      card.setAttribute("aria-label", `Open ${book.title}`);
 
       const cover = document.createElement("div");
       cover.className = "dash-book-cover";
@@ -578,6 +592,7 @@
       renderDashShelf(books);
       renderHeatmap(audit);
       renderDashFeed(audit);
+      renderDailyGoal();
     } catch {
       // The dashboard is decoration on top of the studio — never let it break the app.
     }
@@ -591,12 +606,152 @@
     hide("book-edit-panel");
     show("empty-desk");
     await renderDashboard();
+    setWorkspaceLocation("Overview", "nav-home-btn");
     if (scrollTargetId) {
       const target = document.getElementById(scrollTargetId);
       if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
     } else {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  }
+
+  // ----------------------------------------- Daily practice & focus --
+
+  function setWorkspaceLocation(label, activeId) {
+    document.getElementById("workspace-location").textContent = label;
+    document.querySelectorAll(".header-nav .nav-btn").forEach((button) => {
+      const active = button.id === activeId;
+      button.classList.toggle("active", active);
+      if (active) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
+  }
+
+  function getDailyProgress() {
+    const progress = state.store.getPrefs().dailyProgress;
+    return progress && progress.date === dayKey(new Date())
+      ? { words: Math.max(0, Number(progress.words) || 0) } : { words: 0 };
+  }
+
+  function renderDailyGoal() {
+    const goal = Math.min(100000, Math.max(1, Number(state.store.getPrefs().dailyWordGoal) || 500));
+    const words = getDailyProgress().words;
+    document.getElementById("daily-words").textContent = words.toLocaleString();
+    document.getElementById("daily-words").title = "Net words added in the editor today on this device, including pasted text. Imports and sample books are not counted.";
+    document.getElementById("daily-goal-label").textContent = goal.toLocaleString();
+    if (document.getElementById("daily-goal-form").hidden) document.getElementById("daily-goal-input").value = goal;
+    document.getElementById("daily-goal-ring").style.strokeDashoffset = String(100 - Math.min(100, words / goal * 100));
+    document.getElementById("goal-encouragement").textContent = words >= goal
+      ? "You showed up. Your daily intention is complete!"
+      : words > 0 ? `${(goal - words).toLocaleString()} more words. You’re making room for your story.`
+      : "A blank page is full of possibility.";
+  }
+
+  function wireStudioEvents() {
+    const date = new Date();
+    const dateEl = document.getElementById("studio-date");
+    dateEl.dateTime = dayKey(date);
+    dateEl.textContent = date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    setWorkspaceLocation("Overview", "nav-home-btn");
+    const on = (id, event, fn) => document.getElementById(id).addEventListener(event, fn);
+    const newManuscript = () => {
+      const input = document.getElementById("new-book-title");
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+      input.focus({ preventScroll: true });
+    };
+    on("shelf-create-btn", "click", newManuscript);
+    on("focus-new-book-btn", "click", newManuscript);
+    on("workspace-settings-btn", "click", () => document.getElementById("llm-indicator").click());
+    on("settings-backup-btn", "click", () => document.getElementById("backup-download-link").click());
+    on("settings-restore-btn", "click", () => { hide("settings-modal"); document.getElementById("restore-backup-btn").click(); });
+    on("settings-import-btn", "click", () => { hide("settings-modal"); show("import-modal"); });
+    on("manuscript-search", "input", () => renderDashShelf(state.books));
+    on("manuscript-sort", "change", () => renderDashShelf(state.books));
+    on("nav-manuscripts-btn", "click", async () => {
+      await goStudioHome("dash-shelf-section");
+      setWorkspaceLocation("Manuscripts", "nav-manuscripts-btn");
+    });
+    on("disclosure-open-btn", "click", openGlobalAuditModal);
+    on("daily-write-btn", "click", async () => {
+      await flushPendingAutosave();
+      const bookId = state.activeBookId || state.books[0]?.id;
+      if (!bookId) { newManuscript(); return; }
+      await openBook(bookId);
+      const chapters = state.activeBook.chapters || [];
+      if (chapters.length) await openChapter(chapters[chapters.length - 1].id);
+      else {
+        const chapter = await Data.createChapter(bookId, { title: "Chapter 1" });
+        await refreshBookList();
+        await openChapter(chapter.id);
+      }
+      document.getElementById("chapter-text").focus();
+    });
+    on("edit-daily-goal-btn", "click", () => {
+      const form = document.getElementById("daily-goal-form");
+      form.hidden = !form.hidden;
+      if (!form.hidden) document.getElementById("daily-goal-input").focus();
+    });
+    on("daily-goal-form", "submit", (e) => {
+      e.preventDefault();
+      const goal = Number(document.getElementById("daily-goal-input").value);
+      if (!Number.isInteger(goal) || goal < 1 || goal > 100000) return;
+      state.store.savePrefs({ dailyWordGoal: goal });
+      document.getElementById("daily-goal-form").hidden = true;
+      renderDailyGoal();
+    });
+    on("tools-export-btn", "click", async () => {
+      await flushPendingAutosave();
+      const bookId = state.activeBookId || state.books[0]?.id;
+      if (!bookId) { newManuscript(); return; }
+      await openBook(bookId);
+      show("manuscript-modal");
+    });
+    on("tools-craft-btn", "click", async () => {
+      await flushPendingAutosave();
+      const bookId = state.activeBookId || state.books[0]?.id;
+      if (!bookId) { newManuscript(); return; }
+      await openBook(bookId);
+      const chapter = state.activeBook.chapters?.[0];
+      if (!chapter) { document.getElementById("new-chapter-title").focus(); return; }
+      await openChapter(chapter.id);
+      document.getElementById("run-local-craft-btn").click();
+      document.getElementById("feedback-results").scrollIntoView({ behavior: "smooth" });
+    });
+    on("tools-guide-btn", "click", () => document.getElementById("nav-guide-btn").click());
+
+    // Use a deadline, not decrementing ticks, so background tabs stay accurate.
+    let timer = state.store.getPrefs().focusTimer || { remaining: 1500, deadline: null };
+    let completionAnnounced = false;
+    const renderTimer = () => {
+      const remaining = timer.deadline ? Math.max(0, Math.ceil((timer.deadline - Date.now()) / 1000)) : timer.remaining;
+      document.getElementById("focus-clock").textContent = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`;
+      document.getElementById("start-focus-btn").textContent = timer.deadline ? "Ⅱ Pause session" : remaining === 0 ? "▷ Start again" : "▷ Start session";
+      if (remaining === 0 && timer.deadline) {
+        timer = { remaining: 0, deadline: null };
+        state.store.savePrefs({ focusTimer: timer });
+        document.getElementById("start-focus-btn").textContent = "▷ Start again";
+        document.getElementById("focus-session-note").textContent = "Session complete. Stretch, breathe, and take a break.";
+        completionAnnounced = true;
+      } else if (!completionAnnounced) {
+        document.getElementById("focus-session-note").textContent = timer.deadline ? "Your time. Your story. You’ve got this." : "25 minutes, just for your story.";
+      }
+    };
+    on("start-focus-btn", "click", () => {
+      completionAnnounced = false;
+      timer = timer.deadline
+        ? { remaining: Math.max(0, Math.ceil((timer.deadline - Date.now()) / 1000)), deadline: null }
+        : { remaining: timer.remaining || 1500, deadline: Date.now() + (timer.remaining || 1500) * 1000 };
+      state.store.savePrefs({ focusTimer: timer });
+      renderTimer();
+    });
+    on("reset-focus-btn", "click", () => {
+      timer = { remaining: 1500, deadline: null };
+      completionAnnounced = false;
+      state.store.savePrefs({ focusTimer: timer });
+      renderTimer();
+    });
+    renderTimer();
+    setInterval(() => { renderTimer(); renderDailyGoal(); }, 1000);
   }
 
   // ------------------------------------------------------- Book Shelf --
@@ -614,6 +769,12 @@
     for (const book of books) {
       const li = document.createElement("li");
       li.dataset.bookId = book.id;
+      li.tabIndex = 0;
+      li.setAttribute("role", "button");
+      li.setAttribute("aria-label", `Open ${book.title}`);
+      li.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); li.click(); }
+      });
       if (book.id === state.activeBookId) li.classList.add("active");
 
       const cover = document.createElement("span");
@@ -692,7 +853,10 @@
         show("report-modal");
       }
     });
-    document.getElementById("nav-guide-btn").addEventListener("click", () => goStudioHome("feature-tour"));
+    document.getElementById("nav-guide-btn").addEventListener("click", () => {
+      document.getElementById("studio-guide").open = true;
+      goStudioHome("studio-guide");
+    });
     document.getElementById("dash-ledger-btn").addEventListener("click", openGlobalAuditModal);
 
     // New book creation
@@ -718,9 +882,6 @@
     });
 
     // Empty desk actions
-    document.getElementById("focus-new-book-btn").addEventListener("click", () => {
-      document.getElementById("new-book-title").focus();
-    });
 
     document.getElementById("load-sample-btn").addEventListener("click", async () => {
       await flushPendingAutosave();
@@ -1074,10 +1235,24 @@
     document.getElementById("run-local-craft-btn").addEventListener("click", onRunLocalCraft);
     document.getElementById("run-feedback-btn").addEventListener("click", onRunFeedback);
 
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab") return;
+      const modal = document.querySelector(".modal-backdrop:not([hidden])");
+      if (!modal) return;
+      const focusable = [...modal.querySelectorAll("button, a[href], input, select, textarea, [tabindex='0']")]
+        .filter(el => !el.disabled && el.getClientRects().length);
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+        e.preventDefault(); last?.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+        e.preventDefault(); first?.focus();
+      }
+    });
+
     // Close modals or Focus Mode on Escape + clicking backdrop
     document.querySelectorAll(".modal-backdrop").forEach((backdrop) => {
       backdrop.addEventListener("click", (e) => {
-        if (e.target === backdrop) backdrop.hidden = true;
+        if (e.target === backdrop) hide(backdrop.id);
       });
     });
 
@@ -1086,7 +1261,7 @@
         let closedModal = false;
         document.querySelectorAll(".modal-backdrop").forEach((m) => {
           if (!m.hidden) {
-            m.hidden = true;
+            hide(m.id);
             closedModal = true;
           }
         });
@@ -1110,12 +1285,39 @@
     });
   }
 
-  function hide(id) { document.getElementById(id).hidden = true; }
-  function show(id) { document.getElementById(id).hidden = false; }
+  const modalReturnFocus = new Map();
+  function hide(id) {
+    const element = document.getElementById(id);
+    element.hidden = true;
+    if (element.classList.contains("modal-backdrop")) {
+      const previous = modalReturnFocus.get(id);
+      if (previous?.isConnected) previous.focus({ preventScroll: true });
+      modalReturnFocus.delete(id);
+    }
+  }
+  function show(id) {
+    const element = document.getElementById(id);
+    if (element.classList.contains("modal-backdrop")) {
+      modalReturnFocus.set(id, document.activeElement);
+      const dialog = element.querySelector(".modal");
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      const heading = dialog.querySelector("h2");
+      if (heading) {
+        if (!heading.id) heading.id = `${id}-heading`;
+        dialog.setAttribute("aria-labelledby", heading.id);
+      }
+    }
+    element.hidden = false;
+    if (element.classList.contains("modal-backdrop")) {
+      element.querySelector("input:not([type=file]), button, select, textarea")?.focus();
+    }
+  }
 
   // --------------------------------------------------------- Book View --
 
   async function openBook(bookId) {
+    setWorkspaceLocation("Manuscripts", "nav-manuscripts-btn");
     state.activeBookId = Number(bookId);
     state.activeChapterId = null;
     state.activeChapter = null;
@@ -1311,6 +1513,7 @@
 
   async function openChapter(chapterId) {
     await flushPendingAutosave();
+    setWorkspaceLocation("Writing studio", "nav-write-btn");
     state.activeChapterId = Number(chapterId);
 
     // Ensure state.activeBook has latest chapter list for Prev/Next navigation
@@ -1331,6 +1534,7 @@
 
     const editor = document.getElementById("chapter-text");
     editor.value = chapter.text || "";
+    state.lastEditorWordCount = Engine.countWords(editor.value);
     updateLiveWritingStats(editor.value);
 
     document.getElementById("classify-note").value = chapter.classification_note || "";
@@ -1393,6 +1597,13 @@
   function onEditorInput() {
     const text = document.getElementById("chapter-text").value;
     updateLiveWritingStats(text);
+    const count = Engine.countWords(text);
+    const daily = getDailyProgress();
+    state.store.savePrefs({ dailyProgress: {
+      date: dayKey(new Date()), words: Math.max(0, daily.words + count - (state.lastEditorWordCount || 0))
+    }});
+    state.lastEditorWordCount = count;
+    renderDailyGoal();
     state.dirtyText = true;
 
     if (state.mode === "browser" && state.activeChapterId) {

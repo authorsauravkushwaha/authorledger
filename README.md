@@ -21,8 +21,9 @@ AuthorLedger gives you a calm, distraction-free **writing studio and compliance 
 
 ## What you can do right on the website
 
-- **A 3D studio.** The hero is a real CSS-3D book you can drag to spin (it sways on its own and follows your pointer), shelf covers are standing 3D books, and cards tilt with a glare highlight. It is pure CSS transforms plus a small script, with no WebGL or libraries, so it stays zero-dependency, works offline and keeps the strict CSP. `prefers-reduced-motion` turns the motion off.
-- **Open on a full studio dashboard.** Live workspace statistics (books, chapters, words written, reading time, ledger entries), a 26-week writing-activity heatmap, your shelf with generated covers and word-goal progress, a recent-activity feed from your own ledger, a complete feature tour, and a plain-language FAQ — the whole studio explained at a glance.
+- **A calm, author-first workspace.** An editorial dashboard with a dedicated manuscript shelf, persistent studio navigation, an illustrated welcome, live writing statistics, and a 26-week ledger-activity heatmap. Search manuscripts by title or author, sort by recent activity, title, or word count, and open them with the keyboard.
+- **Make a daily writing practice.** Set your own daily word goal and see net words added in the editor on this device today. A 25-minute focus timer supports pause, reset, and reload recovery, using a real deadline so background-tab throttling doesn't lose time. Sample books and manuscript imports don't inflate your daily writing count.
+- **A clearer next step.** Jump into your latest chapter, export a manuscript, run offline craft feedback, or explore the studio guide. Backup and restore are available in workspace settings on mobile as well as the desktop sidebar. All statistics start with your real data, not fabricated activity.
 - **Write and save directly in your browser.** Create books and chapters, set word-count goals, write in **Focus Mode** with customizable typography (`Serif`, `Sans`, `Mono`) and paper themes (`Ledger`, `Parchment`, `Night Ink`), use Find & Replace, reorder chapters, and save named **version snapshots** before rewrites. Everything saves automatically to your browser (`IndexedDB` + synchronous `localStorage` mirror) with zero account or server required.
 - **Own your manuscript & backups.** Download your compiled book anytime as **Markdown (`.md`)**, **Plain Text (`.txt`)**, or **Print-ready Typeset HTML / PDF (`.html`)**. Import existing `.md` or `.txt` manuscripts (automatically split into chapters) and export/restore full `.json` workspace backups across devices.
 - **Log every chapter honestly.** Stamp each chapter **Human-written**, **AI-assisted**, or **AI-generated**, with an optional note about which tool and what it helped with.
@@ -82,7 +83,7 @@ authorledger/
 │   ├── engine.js              # browser IndexedDB store, pattern analysis, reports, manuscript compiler
 │   ├── depth.js               # 3D layer: hero book scene, card tilt/glare, scroll reveal (no libraries)
 │   ├── app.js                 # UI controller (autosave, focus mode, snapshots, exports)
-│   └── style.css              # ledger/parchment/night paper themes, layout & CSS-3D books
+│   └── style.css              # responsive studio shell, paper themes & book covers
 ├── main.py                    # optional local Python entry point
 ├── authorledger/              # optional stdlib-only Python + SQLite backend
 │   ├── database.py            # SQLite layer + append-only audit log + snapshots
@@ -98,6 +99,20 @@ authorledger/
 ```bash
 python3 -m pytest tests/ -v
 ```
+
+Optional real-browser checks cover responsive layouts, manuscript search and
+sorting, autosave persistence, daily goals, timer recovery, keyboard navigation,
+mobile backups, and manuscript export:
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+python3 -m pytest tests/test_studio_browser.py -v
+```
+
+If Chromium is already installed elsewhere, set
+`AUTHORLEDGER_CHROMIUM_EXECUTABLE=/path/to/chromium`. Browser tests skip cleanly
+when Playwright or its browser is not installed.
 
 ## Disclaimer
 
