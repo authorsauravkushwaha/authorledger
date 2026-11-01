@@ -371,6 +371,39 @@
     return `${y}-${m}-${d}`;
   }
 
+  // A small CSS-3D book (six faces) used on the dashboard shelf. Pure DOM +
+  // CSS transforms; styling lives in style.css under "3D DEPTH LAYER".
+  function buildBook3D(tone, initialsText) {
+    const toneClass = `cover-tone-${tone}`;
+    const book = document.createElement("div");
+    book.className = "book3d";
+    book.setAttribute("aria-hidden", "true");
+
+    const face = (cls, extra) => {
+      const el = document.createElement("div");
+      el.className = `b3-face ${cls}${extra ? ` ${extra}` : ""}`;
+      return el;
+    };
+
+    const front = face("b3-front", toneClass);
+    const mark = document.createElement("span");
+    mark.className = "dash-book-mark";
+    mark.textContent = "§";
+    const initials = document.createElement("span");
+    initials.className = "dash-book-initials";
+    initials.textContent = initialsText;
+    front.appendChild(mark);
+    front.appendChild(initials);
+
+    book.appendChild(face("b3-back", toneClass));
+    book.appendChild(face("b3-spine", toneClass));
+    book.appendChild(face("b3-pages"));
+    book.appendChild(face("b3-top"));
+    book.appendChild(face("b3-bottom"));
+    book.appendChild(front);
+    return book;
+  }
+
   function renderDashShelf(books) {
     const grid = document.getElementById("dash-shelf");
     const empty = document.getElementById("dash-shelf-empty");
@@ -387,15 +420,8 @@
       card.tabIndex = 0;
 
       const cover = document.createElement("div");
-      cover.className = `dash-book-cover cover-tone-${coverToneFor(book.title)}`;
-      const mark = document.createElement("span");
-      mark.className = "dash-book-mark";
-      mark.textContent = "§";
-      const initials = document.createElement("span");
-      initials.className = "dash-book-initials";
-      initials.textContent = initialsFor(book.title);
-      cover.appendChild(mark);
-      cover.appendChild(initials);
+      cover.className = "dash-book-cover";
+      cover.appendChild(buildBook3D(coverToneFor(book.title), initialsFor(book.title)));
 
       const body = document.createElement("div");
       body.className = "dash-book-body";

@@ -99,15 +99,36 @@
         </div>
 
         <div class="hero-visual" aria-hidden="true">
-          <div class="hero-cover-stack">
-            <div class="hero-cover hero-cover-back cover-tone-3"></div>
-            <div class="hero-cover hero-cover-front cover-tone-1">
-              <div class="hero-cover-frame">
-                <span class="hero-cover-mark">§</span>
-                <span class="hero-cover-title">The Honest Ledger</span>
-                <span class="hero-cover-sub">a writer's studio &amp; paper trail</span>
-                <span class="hero-cover-rule"></span>
-                <span class="hero-cover-foot">MANUSCRIPT · EDITION I</span>
+          <div class="hero-cover-stack scene3d">
+            <div class="scene3d-floor"></div>
+            <div class="scene3d-float">
+              <div class="scene3d-rig">
+                <div class="book3d book3d-hero-back">
+                  <div class="b3-face b3-back cover-tone-3"></div>
+                  <div class="b3-face b3-spine cover-tone-3"><span class="b3-spine-title">Ledger Vol. I</span></div>
+                  <div class="b3-face b3-pages"></div>
+                  <div class="b3-face b3-top"></div>
+                  <div class="b3-face b3-bottom"></div>
+                  <div class="b3-face b3-front cover-tone-3"></div>
+                </div>
+                <div class="book3d book3d-hero-front">
+                  <div class="b3-face b3-back cover-tone-1"></div>
+                  <div class="b3-face b3-spine cover-tone-1"><span class="b3-spine-title">The Honest Ledger</span></div>
+                  <div class="b3-face b3-pages"></div>
+                  <div class="b3-face b3-top"></div>
+                  <div class="b3-face b3-bottom"></div>
+                  <div class="b3-face b3-front cover-tone-1">
+                    <div class="hero-cover-frame">
+                      <span class="hero-cover-mark">§</span>
+                      <span class="hero-cover-title">The Honest Ledger</span>
+                      <span class="hero-cover-sub">a writer's studio &amp; paper trail</span>
+                      <span class="hero-cover-rule"></span>
+                      <span class="hero-cover-foot">MANUSCRIPT · EDITION I</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="scene3d-chip scene3d-chip-human">Human-written</div>
+                <div class="scene3d-chip scene3d-chip-assisted">AI-assisted</div>
               </div>
             </div>
           </div>
@@ -749,6 +770,7 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="depth.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

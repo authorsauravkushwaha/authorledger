@@ -21,6 +21,7 @@ AuthorLedger gives you a calm, distraction-free **writing studio and compliance 
 
 ## What you can do right on the website
 
+- **A 3D studio.** The hero is a real CSS-3D book you can drag to spin (it sways on its own and follows your pointer), shelf covers are standing 3D books, and cards tilt with a glare highlight. It is pure CSS transforms plus a small script, with no WebGL or libraries, so it stays zero-dependency, works offline and keeps the strict CSP. `prefers-reduced-motion` turns the motion off.
 - **Open on a full studio dashboard.** Live workspace statistics (books, chapters, words written, reading time, ledger entries), a 26-week writing-activity heatmap, your shelf with generated covers and word-goal progress, a recent-activity feed from your own ledger, a complete feature tour, and a plain-language FAQ — the whole studio explained at a glance.
 - **Write and save directly in your browser.** Create books and chapters, set word-count goals, write in **Focus Mode** with customizable typography (`Serif`, `Sans`, `Mono`) and paper themes (`Ledger`, `Parchment`, `Night Ink`), use Find & Replace, reorder chapters, and save named **version snapshots** before rewrites. Everything saves automatically to your browser (`IndexedDB` + synchronous `localStorage` mirror) with zero account or server required.
 - **Own your manuscript & backups.** Download your compiled book anytime as **Markdown (`.md`)**, **Plain Text (`.txt`)**, or **Print-ready Typeset HTML / PDF (`.html`)**. Import existing `.md` or `.txt` manuscripts (automatically split into chapters) and export/restore full `.json` workspace backups across devices.
@@ -79,8 +80,9 @@ authorledger/
 ├── web/                       # standalone browser studio (deployed to GitHub Pages)
 │   ├── index.html             # full writing & compliance workspace markup
 │   ├── engine.js              # browser IndexedDB store, pattern analysis, reports, manuscript compiler
+│   ├── depth.js               # 3D layer: hero book scene, card tilt/glare, scroll reveal (no libraries)
 │   ├── app.js                 # UI controller (autosave, focus mode, snapshots, exports)
-│   └── style.css              # ledger/parchment/night paper themes & layout
+│   └── style.css              # ledger/parchment/night paper themes, layout & CSS-3D books
 ├── main.py                    # optional local Python entry point
 ├── authorledger/              # optional stdlib-only Python + SQLite backend
 │   ├── database.py            # SQLite layer + append-only audit log + snapshots
