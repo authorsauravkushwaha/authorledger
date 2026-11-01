@@ -185,3 +185,67 @@ def test_invalid_classification_returns_400(running_server):
                             {"classification": "wizardry"})
     assert status == 400
     assert "error" in body
+
+
+def test_studio_endpoints_update_reorder_snapshots_and_global_audit(running_server):
+    base = running_server
+    status, book = request(
+        f"{base}/api/books",
+        "POST",
+        {"title": "Draft Book", "author_name": "Saurav", "word_goal": 20000},
+    )
+    assert status == 201
+    book_id = book["id"]
+    assert book["author_name"] == "Saurav"
+    assert book["word_goal"] == 20000
+
+    status, updated_book = request(
+        f"{base}/api/books/{book_id}",
+        "PUT",
+        {"title": "Revised Title", "word_goal": 30000},
+    )
+    assert status == 200
+    assert updated_book["title"] == "Revised Title"
+    assert updated_book["word_goal"] == 30000
+
+    _, ch1 = request(f"{base}/api/books/{book_id}/chapters", "POST", {"title": "Ch 1", "text": "alpha beta"})
+    _, ch2 = request(f"{base}/api/books/{book_id}/chapters", "POST", {"title": "Ch 2", "text": "gamma delta"})
+
+    # Reorder ch2 up before ch1
+    status, reordered = request(f"{base}/api/chapters/{ch2['id']}/reorder", "POST", {"direction": "up"})
+    assert status == 200
+    assert reordered["chapters"][0]["id"] == ch2["id"]
+
+    # Update chapter meta
+    status, meta_ch = request(
+        f"{base}/api/chapters/{ch1['id']}/meta",
+        "PUT",
+        {"title": "Chapter One Revised", "synopsis": "Key harbor scene", "status": "revising"},
+    )
+    assert status == 200
+    assert meta_ch["title"] == "Chapter One Revised"
+    assert meta_ch["synopsis"] == "Key harbor scene"
+    assert meta_ch["status"] == "revising"
+
+    # Save snapshot, overwrite text, and restore snapshot
+    status, snap = request(
+        f"{base}/api/chapters/{ch1['id']}/snapshots",
+        "POST",
+        {"label": "Before rewrite"},
+    )
+    assert status == 201
+    request(f"{base}/api/chapters/{ch1['id']}/text", "PUT", {"text": "temporary overwrite"})
+    status, restored = request(f"{base}/api/snapshots/{snap['id']}/restore", "POST")
+    assert status == 200
+    assert restored["text"] == "alpha beta"
+
+    # Delete book and verify global audit log retains history
+    request(f"{base}/api/books/{book_id}", "DELETE")
+    status, global_audit = request(f"{base}/api/audit")
+    assert status == 200
+    event_types = [e["event_type"] for e in global_audit["audit_log"]]
+    assert "book_created" in event_types
+    assert "snapshot_saved" in event_types
+    assert "snapshot_restored" in event_types
+    assert "book_deleted" in event_types
+

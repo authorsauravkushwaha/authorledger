@@ -1,150 +1,463 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="ledger">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AuthorLedger</title>
-<link rel="stylesheet" href="/style.css">
+<meta name="description" content="AuthorLedger — Write your books in the browser, save automatically, and keep an honest append-only AI disclosure ledger and manuscript archive.">
+<title>AuthorLedger — Writing Studio &amp; AI Disclosure Ledger</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<header class="app-header">
-  <div class="wordmark">
-    <span class="wordmark-mark">§</span>
-    <h1>AuthorLedger</h1>
+<header class="app-header" id="app-header">
+  <div class="header-brand-block">
+    <div class="wordmark">
+      <span class="wordmark-mark">§</span>
+      <h1>AuthorLedger</h1>
+      <span class="studio-pill">Writing Studio</span>
+    </div>
+    <p class="tagline">Write your books right here, save automatically in your browser, and keep an honest AI-disclosure paper trail.</p>
   </div>
-  <p class="tagline">An honest paper trail for AI use in your books.</p>
-  <div id="llm-indicator" class="llm-indicator" title="">Claude features: checking…</div>
+
+  <div class="header-controls">
+    <div id="storage-indicator" class="storage-indicator" title="All writing and audit history saves automatically in your browser.">
+      <span class="status-dot"></span>
+      <span id="storage-indicator-text">Saved in browser</span>
+    </div>
+    <button type="button" id="theme-toggle-btn" class="btn btn-ghost btn-compact" title="Switch paper theme">
+      Paper: Ledger
+    </button>
+    <button type="button" id="llm-indicator" class="llm-indicator off" title="Configure optional Claude API key or view workspace settings">
+      Claude features: optional
+    </button>
+  </div>
 </header>
 
-<div class="app-body">
+<div class="app-body" id="app-body">
 
-  <aside class="shelf" id="shelf">
-    <h2 class="shelf-heading">Your books</h2>
+  <aside class="shelf" id="shelf" aria-label="Book shelf and workspace backups">
+    <div class="shelf-header-row">
+      <h2 class="shelf-heading">Your books</h2>
+      <span id="shelf-summary" class="shelf-summary">0 books</span>
+    </div>
+
     <ul class="book-list" id="book-list"></ul>
+
     <form id="new-book-form" class="new-book-form">
-      <input type="text" id="new-book-title" placeholder="New book title…" required>
+      <input type="text" id="new-book-title" placeholder="New book title…" aria-label="New book title" required>
+      <div class="new-book-extra">
+        <input type="text" id="new-book-author" placeholder="Author / pen name (optional)" aria-label="Author or pen name">
+        <input type="number" id="new-book-goal" min="0" step="500" placeholder="Word goal, e.g. 50000 (optional)" aria-label="Target word count goal">
+      </div>
       <button type="submit">Add to shelf</button>
     </form>
-    <a href="/api/backup" class="backup-link" download="authorledger-backup.db">Download full backup (.db)</a>
+
+    <div class="shelf-archive">
+      <h3 class="shelf-subheading">Save &amp; portability</h3>
+      <p class="shelf-note">Your work saves automatically on this device. Export backups or manuscripts anytime.</p>
+      <a href="/api/backup" id="backup-download-link" class="backup-link" download="authorledger-backup.db">Download full backup</a>
+      <div class="shelf-tool-buttons">
+        <button type="button" id="restore-backup-btn" class="btn btn-ghost btn-block btn-compact">Restore backup (.json)</button>
+        <input type="file" id="restore-backup-input" accept=".json,application/json" hidden>
+        <button type="button" id="open-import-btn" class="btn btn-ghost btn-block btn-compact">Import manuscript (.md / .txt)</button>
+        <button type="button" id="global-audit-btn" class="btn btn-ghost btn-block btn-compact">All-books ledger history</button>
+      </div>
+    </div>
   </aside>
 
   <main class="desk" id="desk">
+
+    <!-- Empty / Welcome Desk -->
     <div class="empty-desk" id="empty-desk">
-      <p class="empty-lede">Pick a book from the shelf, or start a new one.</p>
+      <p class="empty-eyebrow">BROWSER-SAVED WRITING &amp; COMPLIANCE WORKSPACE</p>
+      <h2 class="empty-headline">Your writing desk is ready.</h2>
+      <p class="empty-lede">Pick a book from the shelf, or start a new manuscript right in your browser — no install or account required.</p>
+
       <ol class="onboarding-steps">
-        <li>Create a book for each manuscript you're tracking.</li>
-        <li>Add a chapter, paste or type its text.</li>
-        <li>Classify it honestly: human-written, AI-assisted, or AI-generated.</li>
-        <li>Export a compliance report whenever KDP asks.</li>
+        <li><strong>Create a book</strong> for any novel, non-fiction project, or short collection you are writing.</li>
+        <li><strong>Write directly on the website</strong> with instant autosave, distraction-free focus mode, chapter outlines, and version checkpoints.</li>
+        <li><strong>Stamp each chapter honestly</strong> — Human-written, AI-assisted, or AI-generated — recorded in an append-only audit trail.</li>
+        <li><strong>Download anytime</strong>: export your compiled manuscript (<code>.md</code>, <code>.txt</code>, print-ready <code>.html</code>), KDP compliance report, or full JSON backup.</li>
       </ol>
+
+      <div class="empty-actions">
+        <button type="button" id="focus-new-book-btn" class="btn btn-primary">+ Start a new book</button>
+        <button type="button" id="load-sample-btn" class="btn btn-ghost">Load sample book</button>
+        <button type="button" id="empty-import-btn" class="btn btn-ghost">Import .md / .txt draft</button>
+      </div>
     </div>
 
+    <!-- Book Overview Desk -->
     <div class="book-view" id="book-view" hidden>
       <div class="book-view-header">
-        <h2 id="book-title"></h2>
+        <div class="book-title-group">
+          <h2 id="book-title"></h2>
+          <p id="book-byline" class="book-byline" hidden></p>
+          <p id="book-note-display" class="book-note-display" hidden></p>
+        </div>
         <div class="book-actions">
-          <button id="export-report-btn" class="btn btn-stamp">Export compliance report</button>
-          <button id="view-audit-btn" class="btn btn-ghost">View audit trail</button>
-          <button id="delete-book-btn" class="btn btn-danger-ghost">Delete book</button>
+          <button type="button" id="quick-write-btn" class="btn btn-primary">+ Write chapter</button>
+          <button type="button" id="export-manuscript-btn" class="btn">Download manuscript</button>
+          <button type="button" id="export-report-btn" class="btn btn-stamp">Export compliance report</button>
+          <button type="button" id="edit-book-btn" class="btn btn-ghost">Book details</button>
+          <button type="button" id="view-audit-btn" class="btn btn-ghost">View audit trail</button>
+          <button type="button" id="delete-book-btn" class="btn btn-danger-ghost">Delete book</button>
         </div>
       </div>
 
+      <!-- Collapsible Book Metadata Editor -->
+      <form id="book-edit-panel" class="book-edit-panel" hidden>
+        <div class="edit-grid">
+          <label>
+            <span>Book title</span>
+            <input type="text" id="edit-book-title" required>
+          </label>
+          <label>
+            <span>Author / pen name</span>
+            <input type="text" id="edit-book-author" placeholder="e.g. Saurav Kushwaha">
+          </label>
+          <label>
+            <span>Word count goal</span>
+            <input type="number" id="edit-book-goal" min="0" step="500" placeholder="e.g. 60000">
+          </label>
+          <label class="edit-grid-wide">
+            <span>Series / project note</span>
+            <input type="text" id="edit-book-note" placeholder="Subtitle, genre, pitch, or private manuscript note">
+          </label>
+        </div>
+        <div class="edit-panel-actions">
+          <button type="button" id="cancel-edit-book-btn" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save book details</button>
+        </div>
+      </form>
+
+      <!-- Manuscript Word Goal Progress -->
+      <div id="goal-strip" class="goal-strip" hidden>
+        <div class="goal-strip-labels">
+          <span id="goal-progress-label">0 / 0 words</span>
+          <span id="goal-reading-label"></span>
+        </div>
+        <progress id="goal-progress-bar" class="goal-progress" value="0" max="100"></progress>
+      </div>
+
+      <!-- Classification Tally Strip -->
       <div class="tally-strip" id="tally-strip"></div>
 
       <div class="chapters-block">
         <div class="chapters-block-header">
           <h3>Chapters</h3>
+          <div class="chapter-filters">
+            <input type="search" id="chapter-search" placeholder="Search chapters or text…" aria-label="Search chapters">
+            <select id="chapter-filter-class" aria-label="Filter by classification">
+              <option value="all">All stamps</option>
+              <option value="human">Human-written</option>
+              <option value="ai_assisted">AI-assisted</option>
+              <option value="ai_generated">AI-generated</option>
+              <option value="unclassified">Unclassified</option>
+            </select>
+          </div>
         </div>
-        <table class="ledger-table" id="chapter-table">
-          <thead>
-            <tr>
-              <th>Chapter</th>
-              <th>Classification</th>
-              <th class="num">Words</th>
-              <th>Last touched</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="chapter-rows"></tbody>
-        </table>
+
+        <div class="table-scroll">
+          <table class="ledger-table" id="chapter-table">
+            <thead>
+              <tr>
+                <th class="col-index">#</th>
+                <th>Chapter</th>
+                <th>Status</th>
+                <th>Classification</th>
+                <th class="num">Words</th>
+                <th>Last touched</th>
+                <th class="col-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="chapter-rows"></tbody>
+          </table>
+        </div>
+
         <form id="new-chapter-form" class="new-chapter-form">
-          <input type="text" id="new-chapter-title" placeholder="New chapter title…" required>
+          <input type="text" id="new-chapter-title" placeholder="New chapter title (e.g. Chapter 1 — The Harbour)…" required>
           <button type="submit">Add chapter</button>
+          <button type="button" id="add-and-write-btn" class="btn btn-ghost">Add &amp; write &rarr;</button>
         </form>
       </div>
     </div>
 
+    <!-- Chapter Writing Studio -->
     <div class="chapter-view" id="chapter-view" hidden>
-      <button id="back-to-book" class="btn btn-ghost back-btn">&larr; Back to book</button>
-      <h2 id="chapter-title"></h2>
-
-      <textarea id="chapter-text" rows="14" placeholder="Paste or write this chapter's text here…"></textarea>
-      <div class="chapter-text-actions">
-        <span id="save-status" class="save-status"></span>
-        <button id="save-text-btn" class="btn btn-primary">Save text</button>
+      <div class="studio-topbar">
+        <div class="studio-nav-left">
+          <button type="button" id="back-to-book" class="btn btn-ghost back-btn">&larr; Back to book</button>
+          <span id="chapter-breadcrumb" class="chapter-breadcrumb"></span>
+        </div>
+        <div class="studio-nav-right">
+          <button type="button" id="prev-chapter-btn" class="btn btn-ghost btn-compact" title="Previous chapter">&larr; Prev</button>
+          <button type="button" id="next-chapter-btn" class="btn btn-ghost btn-compact" title="Next chapter">Next &rarr;</button>
+          <button type="button" id="focus-mode-btn" class="btn btn-compact" title="Distraction-free writing mode (Esc to exit)">Focus mode</button>
+        </div>
       </div>
 
-      <section class="classify-block">
-        <h3>How was this chapter written? Be honest — only you know.</h3>
-        <div class="stamp-choices" id="stamp-choices">
-          <button class="stamp-choice" data-value="human">Human&#8209;written</button>
-          <button class="stamp-choice" data-value="ai_assisted">AI&#8209;assisted</button>
-          <button class="stamp-choice" data-value="ai_generated">AI&#8209;generated</button>
+      <div class="chapter-header-row">
+        <div class="chapter-title-wrap">
+          <h2 id="chapter-title"></h2>
+          <p id="chapter-synopsis-preview" class="chapter-synopsis-preview" hidden></p>
         </div>
-        <input type="text" id="classify-note" placeholder="Optional note (e.g. which tool, what it helped with)">
-      </section>
+        <div class="chapter-meta-controls">
+          <select id="chapter-status-select" class="status-select" aria-label="Chapter draft status">
+            <option value="drafting">Drafting</option>
+            <option value="revising">Revising</option>
+            <option value="final">Final</option>
+          </select>
+          <button type="button" id="toggle-chapter-meta-btn" class="btn btn-ghost btn-compact">Rename / Outline</button>
+          <button type="button" id="snapshots-btn" class="btn btn-ghost btn-compact">Snapshots</button>
+          <button type="button" id="download-chapter-btn" class="btn btn-ghost btn-compact">Download .md</button>
+        </div>
+      </div>
 
-      <section class="pattern-block">
-        <div class="pattern-block-header">
-          <h3>Writing pattern report</h3>
-          <button id="run-pattern-btn" class="btn btn-ghost">Run report</button>
+      <!-- Collapsible Chapter Title & Synopsis Editor -->
+      <form id="chapter-meta-panel" class="book-edit-panel" hidden>
+        <div class="edit-grid">
+          <label>
+            <span>Chapter title</span>
+            <input type="text" id="edit-chapter-title" required>
+          </label>
+          <label class="edit-grid-wide">
+            <span>Scene outline / synopsis notes (private, not exported in manuscript prose)</span>
+            <input type="text" id="edit-chapter-synopsis" placeholder="What happens in this chapter? Key beats, POV, or reminders…">
+          </label>
         </div>
-        <p class="pattern-disclaimer">
-          This is a reflection aid based on simple writing-pattern statistics —
-          sentence rhythm, word variety, a few overused phrases. It is <strong>not</strong>
-          an AI detector and proves nothing about how this text was written.
-          Your honest answer above is what actually matters for disclosure.
-        </p>
-        <div id="pattern-results" class="pattern-results"></div>
-      </section>
+        <div class="edit-panel-actions">
+          <button type="button" id="cancel-chapter-meta-btn" class="btn btn-ghost">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save chapter info</button>
+        </div>
+      </form>
 
-      <section class="feedback-block">
-        <div class="pattern-block-header">
-          <h3>Craft feedback</h3>
-          <button id="run-feedback-btn" class="btn btn-ghost">Ask Claude</button>
+      <!-- Writer's Toolbar -->
+      <div class="writer-toolbar" role="toolbar" aria-label="Writing formatting and view tools">
+        <div class="toolbar-group">
+          <button type="button" class="tool-btn" data-insert="heading" title="Subheading">H2</button>
+          <button type="button" class="tool-btn" data-insert="bold" title="Bold (Ctrl+B)"><strong>B</strong></button>
+          <button type="button" class="tool-btn" data-insert="italic" title="Italic (Ctrl+I)"><em>I</em></button>
+          <button type="button" class="tool-btn" data-insert="quote" title="Blockquote">&ldquo;&rdquo;</button>
+          <button type="button" class="tool-btn" data-insert="emdash" title="Insert em dash (—)">&mdash;</button>
+          <button type="button" class="tool-btn" data-insert="scenebreak" title="Insert scene break (* * *)">* * *</button>
         </div>
-        <p class="pattern-disclaimer">Optional. Pacing and voice notes only — this has nothing to do with disclosure.</p>
-        <div id="feedback-results" class="pattern-results"></div>
-      </section>
+        <div class="toolbar-group">
+          <button type="button" id="toggle-find-btn" class="tool-btn" title="Find and replace in chapter">Find &amp; Replace</button>
+          <select id="editor-font-select" class="tool-select" aria-label="Editor typeface">
+            <option value="serif">Serif</option>
+            <option value="sans">Sans</option>
+            <option value="mono">Mono</option>
+          </select>
+          <select id="editor-size-select" class="tool-select" aria-label="Editor text size">
+            <option value="small">Compact</option>
+            <option value="medium" selected>Standard</option>
+            <option value="large">Large</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Find & Replace Bar -->
+      <div id="find-replace-bar" class="find-replace-bar" hidden>
+        <input type="text" id="find-input" placeholder="Find in chapter…">
+        <input type="text" id="replace-input" placeholder="Replace with…">
+        <span id="find-count" class="find-count"></span>
+        <button type="button" id="find-next-btn" class="btn btn-ghost btn-compact">Find next</button>
+        <button type="button" id="replace-all-btn" class="btn btn-ghost btn-compact">Replace all</button>
+        <button type="button" id="close-find-btn" class="btn btn-ghost btn-compact">Close</button>
+      </div>
+
+      <textarea id="chapter-text" class="editor-serif editor-medium" rows="18" placeholder="Start writing your chapter here… Everything saves automatically in your browser as you type (or press Ctrl+S / Save text anytime)."></textarea>
+
+      <div class="chapter-text-actions">
+        <div class="live-writing-stats" id="live-writing-stats">
+          <span><strong id="live-word-count">0</strong> words</span>
+          <span>&middot;</span>
+          <span><span id="live-char-count">0</span> chars</span>
+          <span>&middot;</span>
+          <span><span id="live-para-count">0</span> paragraphs</span>
+          <span>&middot;</span>
+          <span id="live-read-time">0 min read</span>
+        </div>
+        <div class="save-controls">
+          <span id="save-status" class="save-status" aria-live="polite"></span>
+          <button type="button" id="save-checkpoint-quick-btn" class="btn btn-ghost btn-compact" title="Save a named snapshot of this draft before major edits">Save checkpoint</button>
+          <button type="button" id="save-text-btn" class="btn btn-primary">Save text</button>
+        </div>
+      </div>
+
+      <div class="chapter-panels" id="chapter-panels">
+        <section class="classify-block">
+          <h3>How was this chapter written? Be honest — only you know.</h3>
+          <div class="stamp-choices" id="stamp-choices">
+            <button type="button" class="stamp-choice" data-value="human">Human&#8209;written</button>
+            <button type="button" class="stamp-choice" data-value="ai_assisted">AI&#8209;assisted</button>
+            <button type="button" class="stamp-choice" data-value="ai_generated">AI&#8209;generated</button>
+            <button type="button" class="stamp-choice stamp-choice-reset" data-value="unclassified">Unclassified</button>
+          </div>
+          <div class="classify-note-row">
+            <input type="text" id="classify-note" placeholder="Optional note (e.g. drafted by hand; used Claude for grammar pass)">
+            <button type="button" id="save-note-btn" class="btn btn-ghost btn-compact">Save note</button>
+          </div>
+        </section>
+
+        <section class="pattern-block">
+          <div class="pattern-block-header">
+            <h3>Writing pattern report</h3>
+            <button type="button" id="run-pattern-btn" class="btn btn-ghost">Run report</button>
+          </div>
+          <p class="pattern-disclaimer">
+            This is a reflection aid based on simple writing-pattern statistics —
+            sentence rhythm, word variety, a few overused phrases. It is <strong>not</strong>
+            an AI detector and proves nothing about how this text was written.
+            Your honest answer above is what actually matters for disclosure.
+          </p>
+          <div id="pattern-results" class="pattern-results"></div>
+        </section>
+
+        <section class="feedback-block">
+          <div class="pattern-block-header">
+            <h3>Craft feedback</h3>
+            <div class="feedback-actions">
+              <button type="button" id="run-local-craft-btn" class="btn btn-ghost">Instant craft check</button>
+              <button type="button" id="run-feedback-btn" class="btn btn-ghost">Ask Claude</button>
+            </div>
+          </div>
+          <p class="pattern-disclaimer">Optional pacing, paragraph rhythm, dialogue balance, and voice notes — this has nothing to do with disclosure.</p>
+          <div id="feedback-results" class="pattern-results"></div>
+        </section>
+      </div>
     </div>
   </main>
 </div>
 
+<!-- Book Audit Trail Modal -->
 <div class="modal-backdrop" id="audit-modal" hidden>
   <div class="modal">
     <div class="modal-header">
-      <h2>Audit trail</h2>
-      <button id="close-audit" class="btn btn-ghost">Close</button>
+      <h2 id="audit-modal-title">Audit trail</h2>
+      <button type="button" id="close-audit" class="btn btn-ghost">Close</button>
     </div>
-    <p class="modal-note">Every entry below was written automatically and can't be edited or deleted — that's what makes it a record.</p>
+    <p class="modal-note">Every entry below was written automatically and can't be edited or deleted — even if a chapter or book is later removed. That's what makes it a real ledger.</p>
     <ol class="audit-list" id="audit-list"></ol>
   </div>
 </div>
 
+<!-- KDP Compliance Report Modal -->
 <div class="modal-backdrop" id="report-modal" hidden>
   <div class="modal">
     <div class="modal-header">
       <h2>Compliance report</h2>
-      <button id="close-report" class="btn btn-ghost">Close</button>
+      <button type="button" id="close-report" class="btn btn-ghost">Close</button>
     </div>
     <div id="report-body" class="report-body"></div>
     <div class="modal-footer">
-      <button id="download-report-btn" class="btn btn-stamp">Download as Markdown</button>
+      <button type="button" id="copy-disclosure-btn" class="btn btn-ghost">Copy disclosure note</button>
+      <button type="button" id="download-report-btn" class="btn btn-stamp">Download as Markdown</button>
     </div>
   </div>
 </div>
 
-<script src="/app.js"></script>
+<!-- Manuscript Export Modal -->
+<div class="modal-backdrop" id="manuscript-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Download compiled manuscript</h2>
+      <button type="button" id="close-manuscript-modal" class="btn btn-ghost">Close</button>
+    </div>
+    <p class="modal-note">Export your entire book in chapter order to keep on your computer, share with an editor, or format for publishing.</p>
+    <div class="export-format-cards">
+      <div class="export-card">
+        <h3>Markdown (.md)</h3>
+        <p>Clean headings, italics, bold, and scene breaks — ideal for Scrivener, Obsidian, Pandoc, or Vellum.</p>
+        <button type="button" class="btn btn-primary" data-export-format="markdown">Download .md</button>
+      </div>
+      <div class="export-card">
+        <h3>Plain Text (.txt)</h3>
+        <p>Universal plain-text manuscript with underlined headings and standard scene breaks.</p>
+        <button type="button" class="btn" data-export-format="txt">Download .txt</button>
+      </div>
+      <div class="export-card">
+        <h3>Typeset HTML / Print PDF</h3>
+        <p>Book-typeset HTML file ready to open and Print / Save as PDF in any browser.</p>
+        <button type="button" class="btn" data-export-format="html">Download .html</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Import Manuscript Modal -->
+<div class="modal-backdrop" id="import-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Import manuscript (.md or .txt)</h2>
+      <button type="button" id="close-import-modal" class="btn btn-ghost">Close</button>
+    </div>
+    <p class="modal-note">Bring an existing draft onto the website. Headings like <code>## Chapter 1</code> or <code>CHAPTER ONE</code> are automatically split into separate chapters.</p>
+    <form id="import-manuscript-form" class="import-form">
+      <label>
+        <span>Choose a <code>.md</code> or <code>.txt</code> file</span>
+        <input type="file" id="import-file-input" accept=".md,.markdown,.txt,text/plain,text/markdown">
+      </label>
+      <label>
+        <span>Book title</span>
+        <input type="text" id="import-book-title" placeholder="Book title…" required>
+      </label>
+      <label>
+        <span>Or paste manuscript text directly</span>
+        <textarea id="import-raw-text" rows="7" placeholder="# My Book Title&#10;&#10;## Chapter 1&#10;Your opening scene…"></textarea>
+      </label>
+      <div class="modal-footer">
+        <button type="submit" class="btn btn-primary">Import as new book</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Chapter Version Snapshots Modal -->
+<div class="modal-backdrop" id="snapshots-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Chapter snapshots</h2>
+      <button type="button" id="close-snapshots-modal" class="btn btn-ghost">Close</button>
+    </div>
+    <p class="modal-note">Save a checkpoint before cutting or rewriting a scene. You can restore any saved version later.</p>
+    <form id="new-snapshot-form" class="new-chapter-form">
+      <input type="text" id="new-snapshot-label" placeholder="Checkpoint label (e.g. Before cutting harbour scene)…">
+      <button type="submit">Save snapshot</button>
+    </form>
+    <ul id="snapshots-list" class="audit-list snapshot-list"></ul>
+  </div>
+</div>
+
+<!-- Workspace & Optional Claude Key Settings Modal -->
+<div class="modal-backdrop" id="settings-modal" hidden>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Workspace &amp; AI coach settings</h2>
+      <button type="button" id="close-settings-modal" class="btn btn-ghost">Close</button>
+    </div>
+    <div class="settings-section">
+      <h3>How your work is saved</h3>
+      <p id="settings-storage-explain" class="modal-note">
+        Everything you write is saved privately inside this browser using IndexedDB (with a synchronous localStorage mirror). Nothing is uploaded to any external server. Use "Download full backup" on the shelf anytime to keep an offline copy.
+      </p>
+    </div>
+    <form id="settings-form" class="settings-section">
+      <h3>Optional: Claude API key (browser-only)</h3>
+      <p class="modal-note">
+        AuthorLedger works 100% without an API key (including the Writing Pattern Report, Offline Craft Check, Compliance Report, and Manuscript Export). If you want live Claude prose coaching or narrative report summaries directly in your browser, you can optionally store your own Anthropic API key locally on this device.
+      </p>
+      <input type="password" id="settings-api-key" placeholder="sk-ant-… (optional, stored only in this browser)" autocomplete="off">
+      <div class="modal-footer">
+        <button type="button" id="clear-api-key-btn" class="btn btn-ghost">Clear key</button>
+        <button type="submit" class="btn btn-primary">Save settings</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

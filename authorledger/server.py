@@ -39,6 +39,7 @@ MAX_BODY_BYTES = 10 * 1024 * 1024
 DRAIN_CAP_BYTES = 50 * 1024 * 1024
 _DRAIN_CHUNK = 65536
 
+
 # AuthorLedger only ever binds to 127.0.0.1 (see run(), below), but this
 # extra check costs nothing and rejects requests whose Host header doesn't
 # match — a cheap second layer against a browser tab on some other site
@@ -49,13 +50,16 @@ def _host_is_allowed(host_header: str | None, port: int) -> bool:
     host = host_header.split(",")[0].strip().lower()
     return host in (f"localhost:{port}", f"127.0.0.1:{port}", "localhost", "127.0.0.1")
 
+
 # (regex, method) -> handler name. Handlers receive (self, match, body).
 ROUTES: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"^/api/status$"), "GET", "handle_status"),
     (re.compile(r"^/api/backup$"), "GET", "handle_backup"),
+    (re.compile(r"^/api/audit$"), "GET", "handle_get_global_audit"),
     (re.compile(r"^/api/books$"), "GET", "handle_list_books"),
     (re.compile(r"^/api/books$"), "POST", "handle_create_book"),
     (re.compile(r"^/api/books/(?P<book_id>\d+)$"), "GET", "handle_get_book"),
+    (re.compile(r"^/api/books/(?P<book_id>\d+)$"), "PUT", "handle_update_book"),
     (re.compile(r"^/api/books/(?P<book_id>\d+)$"), "DELETE", "handle_delete_book"),
     (re.compile(r"^/api/books/(?P<book_id>\d+)/chapters$"), "POST", "handle_create_chapter"),
     (re.compile(r"^/api/books/(?P<book_id>\d+)/audit$"), "GET", "handle_get_audit"),
@@ -63,9 +67,14 @@ ROUTES: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)$"), "GET", "handle_get_chapter"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)$"), "DELETE", "handle_delete_chapter"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/text$"), "PUT", "handle_update_text"),
+    (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/meta$"), "PUT", "handle_update_chapter_meta"),
+    (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/reorder$"), "POST", "handle_reorder_chapter"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/classify$"), "PUT", "handle_classify"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/analysis$"), "GET", "handle_analysis"),
     (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/feedback$"), "POST", "handle_feedback"),
+    (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/snapshots$"), "GET", "handle_list_snapshots"),
+    (re.compile(r"^/api/chapters/(?P<chapter_id>\d+)/snapshots$"), "POST", "handle_create_snapshot"),
+    (re.compile(r"^/api/snapshots/(?P<snapshot_id>\d+)/restore$"), "POST", "handle_restore_snapshot"),
 ]
 
 
@@ -156,10 +165,6 @@ def make_handler(db_path: str):
                 except ValueError as exc:
                     self._send_json(400, {"error": str(exc)})
                 except Exception:  # noqa: BLE001 - last line of defense
-                    # Full details go to the server console only. The client
-                    # never sees a stack trace or exception text — that can
-                    # leak file paths and internals to anything that can
-                    # reach this port.
                     print("Unexpected error handling request:", file=sys.stderr)
                     traceback.print_exc()
                     self._send_json(500, {"error": "Unexpected server error."})
@@ -221,11 +226,6 @@ def make_handler(db_path: str):
             self._send_json(200, {"ok": True, "llm_configured": llm_assist.is_configured()})
 
         def handle_backup(self, match, body):
-            # Uses SQLite's own online-backup API rather than just reading
-            # the .db file's raw bytes: copying a live database file byte
-            # for byte while a write might be mid-flight can hand you a
-            # torn, corrupt copy. conn.backup() takes a consistent
-            # snapshot regardless of what else is happening.
             conn = self._connect()
             fd, tmp_path = tempfile.mkstemp(suffix=".db")
             os.close(fd)
@@ -255,7 +255,11 @@ def make_handler(db_path: str):
         def handle_create_book(self, match, body):
             conn = self._connect()
             book_id = database.create_book(
-                conn, body.get("title", ""), body.get("author_note", "")
+                conn,
+                body.get("title", ""),
+                body.get("author_note", ""),
+                author_name=body.get("author_name", ""),
+                word_goal=body.get("word_goal", 0),
             )
             self._send_json(201, database.get_book(conn, book_id))
 
@@ -269,6 +273,20 @@ def make_handler(db_path: str):
             book["chapters"] = database.list_chapters(conn, book_id)
             self._send_json(200, book)
 
+        def handle_update_book(self, match, body):
+            conn = self._connect()
+            book_id = int(match.group("book_id"))
+            updated = database.update_book(
+                conn,
+                book_id,
+                title=body.get("title"),
+                author_name=body.get("author_name"),
+                author_note=body.get("author_note"),
+                word_goal=body.get("word_goal"),
+            )
+            updated["chapters"] = database.list_chapters(conn, book_id)
+            self._send_json(200, updated)
+
         def handle_delete_book(self, match, body):
             conn = self._connect()
             database.delete_book(conn, int(match.group("book_id")))
@@ -278,9 +296,23 @@ def make_handler(db_path: str):
             conn = self._connect()
             book_id = int(match.group("book_id"))
             chapter_id = database.create_chapter(
-                conn, book_id, body.get("title", ""), body.get("text", "")
+                conn,
+                book_id,
+                body.get("title", ""),
+                body.get("text", ""),
+                synopsis=body.get("synopsis", ""),
+                status=body.get("status", "drafting"),
             )
-            self._send_json(201, database.get_chapter(conn, chapter_id))
+            chapter = database.get_chapter(conn, chapter_id)
+            if body.get("classification") and body.get("classification") != "unclassified":
+                database.classify_chapter(
+                    conn,
+                    chapter_id,
+                    body.get("classification"),
+                    body.get("classification_note", ""),
+                )
+                chapter = database.get_chapter(conn, chapter_id)
+            self._send_json(201, chapter)
 
         def handle_get_chapter(self, match, body):
             conn = self._connect()
@@ -298,8 +330,27 @@ def make_handler(db_path: str):
         def handle_update_text(self, match, body):
             conn = self._connect()
             chapter_id = int(match.group("chapter_id"))
-            database.update_chapter_text(conn, chapter_id, body.get("text", ""))
+            log_audit = bool(body.get("log_audit", True))
+            database.update_chapter_text(conn, chapter_id, body.get("text", ""), log_audit=log_audit)
             self._send_json(200, database.get_chapter(conn, chapter_id))
+
+        def handle_update_chapter_meta(self, match, body):
+            conn = self._connect()
+            chapter_id = int(match.group("chapter_id"))
+            updated = database.update_chapter_meta(
+                conn,
+                chapter_id,
+                title=body.get("title"),
+                synopsis=body.get("synopsis"),
+                status=body.get("status"),
+            )
+            self._send_json(200, updated)
+
+        def handle_reorder_chapter(self, match, body):
+            conn = self._connect()
+            chapter_id = int(match.group("chapter_id"))
+            chapters = database.reorder_chapter(conn, chapter_id, body.get("direction", ""))
+            self._send_json(200, {"chapters": chapters})
 
         def handle_classify(self, match, body):
             conn = self._connect()
@@ -337,10 +388,31 @@ def make_handler(db_path: str):
             feedback = llm_assist.craft_feedback(chapter["text"])
             self._send_json(200, {"feedback": feedback})
 
+        def handle_list_snapshots(self, match, body):
+            conn = self._connect()
+            chapter_id = int(match.group("chapter_id"))
+            self._send_json(200, {"snapshots": database.list_snapshots(conn, chapter_id)})
+
+        def handle_create_snapshot(self, match, body):
+            conn = self._connect()
+            chapter_id = int(match.group("chapter_id"))
+            snap = database.create_snapshot(conn, chapter_id, body.get("label", ""))
+            self._send_json(201, snap)
+
+        def handle_restore_snapshot(self, match, body):
+            conn = self._connect()
+            snapshot_id = int(match.group("snapshot_id"))
+            chapter = database.restore_snapshot(conn, snapshot_id)
+            self._send_json(200, chapter)
+
         def handle_get_audit(self, match, body):
             conn = self._connect()
             book_id = int(match.group("book_id"))
             self._send_json(200, {"audit_log": database.get_audit_log(conn, book_id)})
+
+        def handle_get_global_audit(self, match, body):
+            conn = self._connect()
+            self._send_json(200, {"audit_log": database.get_all_audit_logs(conn)})
 
         def handle_get_report(self, match, body):
             conn = self._connect()
