@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="AuthorLedger — Write your books in the browser, save automatically, and keep an honest append-only AI disclosure ledger and manuscript archive.">
+<meta name="description" content="AuthorLedger — a detailed writing studio and honest AI-disclosure ledger: write books in your browser, autosave locally, stamp each chapter's AI use, and export KDP compliance reports from an append-only audit trail.">
 <title>AuthorLedger — Writing Studio &amp; AI Disclosure Ledger</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -18,6 +18,14 @@
     </div>
     <p class="tagline">Write your books right here, save automatically in your browser, and keep an honest AI-disclosure paper trail.</p>
   </div>
+
+  <nav class="header-nav" aria-label="Studio sections">
+    <button type="button" id="nav-home-btn" class="nav-btn">Studio home</button>
+    <button type="button" id="nav-write-btn" class="nav-btn">Write</button>
+    <button type="button" id="nav-ledger-btn" class="nav-btn">Ledger</button>
+    <button type="button" id="nav-reports-btn" class="nav-btn">Reports</button>
+    <button type="button" id="nav-guide-btn" class="nav-btn">Guide</button>
+  </nav>
 
   <div class="header-controls">
     <div id="storage-indicator" class="storage-indicator" title="All writing and audit history saves automatically in your browser.">
@@ -67,33 +75,316 @@
 
   <main class="desk" id="desk">
 
-    <!-- Empty / Welcome Desk -->
+    <!-- ============================ Studio Dashboard / Welcome Desk ==== -->
     <div class="empty-desk" id="empty-desk">
-      <p class="empty-eyebrow">BROWSER-SAVED WRITING &amp; COMPLIANCE WORKSPACE</p>
-      <h2 class="empty-headline">Your writing desk is ready.</h2>
-      <p class="empty-lede">Pick a book from the shelf, or start a new manuscript right in your browser — no install or account required.</p>
 
-      <ol class="onboarding-steps">
-        <li><strong>Create a book</strong> for any novel, non-fiction project, or short collection you are writing.</li>
-        <li><strong>Write directly on the website</strong> with instant autosave, distraction-free focus mode, chapter outlines, and version checkpoints.</li>
-        <li><strong>Stamp each chapter honestly</strong> — Human-written, AI-assisted, or AI-generated — recorded in an append-only audit trail.</li>
-        <li><strong>Download anytime</strong>: export your compiled manuscript (<code>.md</code>, <code>.txt</code>, print-ready <code>.html</code>), KDP compliance report, or full JSON backup.</li>
-      </ol>
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="empty-eyebrow">BROWSER-SAVED WRITING &amp; COMPLIANCE WORKSPACE</p>
+          <h2 class="empty-headline">Write boldly.<br>Keep an honest ledger.</h2>
+          <p class="empty-lede">AuthorLedger is a full writing studio that lives in your browser — chapters, goals, focus mode, version checkpoints — welded to a permanent, append-only record of exactly how each page was written. When Amazon KDP asks, you will have receipts instead of a guess.</p>
+          <div class="empty-actions">
+            <button type="button" id="focus-new-book-btn" class="btn btn-primary">+ Start a new book</button>
+            <button type="button" id="load-sample-btn" class="btn btn-ghost">Load sample book</button>
+            <button type="button" id="empty-import-btn" class="btn btn-ghost">Import .md / .txt draft</button>
+          </div>
+          <p class="hero-micro">No account. No upload. No subscription. Your browser is the vault — export everything, anytime.</p>
+          <ul class="hero-badges">
+            <li>Zero dependencies</li>
+            <li>Works fully offline</li>
+            <li>Append-only audit trail</li>
+            <li>KDP-ready reports</li>
+            <li>MIT licensed</li>
+          </ul>
+        </div>
 
-      <div class="empty-actions">
-        <button type="button" id="focus-new-book-btn" class="btn btn-primary">+ Start a new book</button>
-        <button type="button" id="load-sample-btn" class="btn btn-ghost">Load sample book</button>
-        <button type="button" id="empty-import-btn" class="btn btn-ghost">Import .md / .txt draft</button>
-      </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-cover-stack">
+            <div class="hero-cover hero-cover-back cover-tone-3"></div>
+            <div class="hero-cover hero-cover-front cover-tone-1">
+              <div class="hero-cover-frame">
+                <span class="hero-cover-mark">§</span>
+                <span class="hero-cover-title">The Honest Ledger</span>
+                <span class="hero-cover-sub">a writer's studio &amp; paper trail</span>
+                <span class="hero-cover-rule"></span>
+                <span class="hero-cover-foot">MANUSCRIPT · EDITION I</span>
+              </div>
+            </div>
+          </div>
+          <div class="hero-report-card">
+            <div class="hero-report-head">
+              <span class="hero-report-title">Suggested disclosure note</span>
+              <span class="hero-report-tag">KDP report</span>
+            </div>
+            <p class="hero-report-quote">“The majority of this work was written by hand. A minority of passages were AI-assisted during editing, and are logged chapter-by-chapter in the author's ledger…”</p>
+            <div class="hero-report-rows">
+              <div class="hero-report-row"><span>Human-written</span><strong class="tone-human">72%</strong></div>
+              <div class="hero-report-row"><span>AI-assisted</span><strong class="tone-assisted">21%</strong></div>
+              <div class="hero-report-row"><span>AI-generated</span><strong class="tone-generated">7%</strong></div>
+            </div>
+            <div class="hero-stamp-row">
+              <span class="stamp stamp-human">Human-written</span>
+              <span class="stamp stamp-ai_assisted">AI-assisted</span>
+              <span class="stamp stamp-ai_generated">AI-generated</span>
+            </div>
+            <div class="hero-ticker">
+              <div class="hero-ticker-row"><span class="hero-ticker-time">09:41</span><span>chapter_finalized · Ch. 12 “Salt &amp; Iron”</span></div>
+              <div class="hero-ticker-row"><span class="hero-ticker-time">09:38</span><span>classification_logged · ai_assisted</span></div>
+              <div class="hero-ticker-row"><span class="hero-ticker-time">08:55</span><span>snapshot_saved · before line edit</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="dash-stats" aria-label="Workspace statistics">
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="dash-stat-books">0</div>
+          <div class="dash-stat-label">Books on shelf</div>
+          <div class="dash-stat-note">novels, non-fiction &amp; collections</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="dash-stat-chapters">0</div>
+          <div class="dash-stat-label">Chapters drafted</div>
+          <div class="dash-stat-note">across every manuscript</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="dash-stat-words">0</div>
+          <div class="dash-stat-label">Words written</div>
+          <div class="dash-stat-note">counted live as you type</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="dash-stat-readtime">0m</div>
+          <div class="dash-stat-label">Reading time</div>
+          <div class="dash-stat-note">at ~230 words per minute</div>
+        </div>
+        <div class="dash-stat-card">
+          <div class="dash-stat-value" id="dash-stat-ledger">0</div>
+          <div class="dash-stat-label">Ledger entries</div>
+          <div class="dash-stat-note">append-only, never rewritten</div>
+        </div>
+      </section>
+
+      <section class="dash-section" id="dash-shelf-section">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">Your shelf</h3>
+          <p class="dash-section-sub">Every manuscript in this workspace, with live progress against its word goal.</p>
+        </div>
+        <div class="dash-shelf" id="dash-shelf"></div>
+        <p class="dash-empty muted-note" id="dash-shelf-empty">Your shelf is empty — create your first book above, load the sample, or import an existing draft.</p>
+      </section>
+
+      <section class="dash-section">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">Studio activity</h3>
+          <p class="dash-section-sub">A real record, not a vibe — writing days and ledger events from your own history.</p>
+        </div>
+        <div class="dash-panels">
+          <div class="panel-card">
+            <div class="panel-card-head">
+              <h4>Writing activity</h4>
+              <span class="panel-card-note">last 26 weeks</span>
+            </div>
+            <div class="dash-heatmap" id="dash-heatmap" aria-label="Writing activity heatmap"></div>
+            <div class="heat-legend">
+              <span class="heat-legend-label">Quiet</span>
+              <span class="heat-cell heat-0"></span>
+              <span class="heat-cell heat-1"></span>
+              <span class="heat-cell heat-2"></span>
+              <span class="heat-cell heat-3"></span>
+              <span class="heat-cell heat-4"></span>
+              <span class="heat-legend-label">Busy</span>
+            </div>
+          </div>
+          <div class="panel-card">
+            <div class="panel-card-head">
+              <h4>Recent ledger entries</h4>
+              <button type="button" id="dash-ledger-btn" class="btn btn-ghost btn-compact">Open full history</button>
+            </div>
+            <ol class="dash-activity-feed" id="dash-activity-feed"></ol>
+            <p class="dash-empty muted-note" id="dash-feed-empty">No ledger events yet — they appear here automatically the moment you write, classify, or snapshot a chapter.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="dash-section" id="feature-tour">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">Everything the studio does</h3>
+          <p class="dash-section-sub">Eight working systems, all offline-first, all yours. Nothing here is a placeholder.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">✎</div>
+            <h4 class="feature-title">Instant browser autosave</h4>
+            <p class="feature-desc">Every keystroke is mirrored into IndexedDB with a synchronous localStorage shadow copy. Close the tab mid-sentence and your words are still there when you return — no save button required (though there is one, and a Ctrl+S too).</p>
+            <ul class="feature-tags">
+              <li>Works offline</li>
+              <li>No account</li>
+              <li>Nothing uploaded</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">§</div>
+            <h4 class="feature-title">Append-only audit ledger</h4>
+            <p class="feature-desc">Every classification, edit milestone, snapshot, and correction is timestamped and written exactly once. Reclassifying a chapter adds a new entry — it never rewrites history — and deleting a book can't erase the record that it existed.</p>
+            <ul class="feature-tags">
+              <li>Timestamped</li>
+              <li>Survives deletions</li>
+              <li>Exportable</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">▤</div>
+            <h4 class="feature-title">KDP compliance reports</h4>
+            <p class="feature-desc">One click turns your honest stamps into a formatted report: word counts by classification, percentages, a chapter-by-chapter breakdown, and a plain-language disclosure note you can paste straight into KDP's form.</p>
+            <ul class="feature-tags">
+              <li>Word counts &amp; %</li>
+              <li>Suggested disclosure</li>
+              <li>Markdown download</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">≋</div>
+            <h4 class="feature-title">Writing pattern report</h4>
+            <p class="feature-desc">Sentence rhythm (burstiness), word variety, repeated trigrams, and overused-phrase statistics — deliberately framed as a memory-jogger for your own classification, never as an AI detector, score, or verdict.</p>
+            <ul class="feature-tags">
+              <li>Offline heuristics</li>
+              <li>No confidence scores</li>
+              <li>Flags second looks</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">✦</div>
+            <h4 class="feature-title">Craft &amp; pacing coach</h4>
+            <p class="feature-desc">An instant offline craft check — paragraph pacing, sentence-length variation, modifier density, dialogue balance — plus optional live Claude feedback with your own API key if you want a second opinion on the prose.</p>
+            <ul class="feature-tags">
+              <li>Instant offline check</li>
+              <li>Optional Claude BYO-key</li>
+              <li>Craft only, not disclosure</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">↺</div>
+            <h4 class="feature-title">Version snapshots</h4>
+            <p class="feature-desc">Name a checkpoint before you cut a scene. Every snapshot is a complete copy of the chapter you can restore with one click later — so bold rewrites stop being scary and experiments stay cheap.</p>
+            <ul class="feature-tags">
+              <li>Named checkpoints</li>
+              <li>One-click restore</li>
+              <li>Kept per chapter</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">Aa</div>
+            <h4 class="feature-title">Focus mode &amp; typography</h4>
+            <p class="feature-desc">Distraction-free writing with Serif, Sans, or Mono typefaces at three sizes, three paper themes — Ledger, Parchment, and Night Ink — plus find &amp; replace, scene-break helpers, and keyboard shortcuts throughout.</p>
+            <ul class="feature-tags">
+              <li>3 paper themes</li>
+              <li>Find &amp; replace</li>
+              <li>Keyboard-first</li>
+            </ul>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">↓</div>
+            <h4 class="feature-title">Own your exports</h4>
+            <p class="feature-desc">Download your compiled book as Markdown, plain text, or print-ready typeset HTML for PDF. Import existing .md / .txt drafts (auto-split into chapters), and move complete JSON workspace backups between devices.</p>
+            <ul class="feature-tags">
+              <li>.md / .txt / .html</li>
+              <li>Import manuscripts</li>
+              <li>Full backup &amp; restore</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section class="dash-section">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">Two promises, kept in the code</h3>
+          <p class="dash-section-sub">These aren't marketing lines — they're design rules this codebase enforces on itself.</p>
+        </div>
+        <div class="principles-grid">
+          <article class="principle-card">
+            <div class="principle-num">01</div>
+            <h4 class="principle-title">The ledger is append-only, on purpose.</h4>
+            <p class="principle-desc">A compliance record you can quietly rewrite isn't a compliance record. Audit entries are written once and never edited or deleted — not by you, not by the app, not by anyone. Corrections get their own new entry, timestamped. That's the whole point.</p>
+          </article>
+          <article class="principle-card">
+            <div class="principle-num">02</div>
+            <h4 class="principle-title">No detector theatre. Ever.</h4>
+            <p class="principle-desc">The Writing Pattern Report never outputs a confidence score, a percentage, or a verdict about whether text “is AI.” No lightweight statistics tool can honestly claim that, and one that pretends to can talk an author into a wrong answer with false confidence. Only you know how a chapter was actually written.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="dash-section">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">How it works</h3>
+          <p class="dash-section-sub">Four steps from blank page to defensible disclosure record.</p>
+        </div>
+        <ol class="onboarding-steps">
+          <li><strong>Create a book</strong> for any novel, non-fiction project, or short collection you are writing.</li>
+          <li><strong>Write directly on the website</strong> with instant autosave, distraction-free focus mode, chapter outlines, and version checkpoints.</li>
+          <li><strong>Stamp each chapter honestly</strong> — Human-written, AI-assisted, or AI-generated — recorded in an append-only audit trail.</li>
+          <li><strong>Download anytime</strong>: export your compiled manuscript (<code>.md</code>, <code>.txt</code>, print-ready <code>.html</code>), KDP compliance report, or full JSON backup.</li>
+        </ol>
+      </section>
+
+      <section class="dash-section" id="guide-faq">
+        <div class="dash-section-head">
+          <h3 class="dash-section-title">Details worth knowing</h3>
+          <p class="dash-section-sub">The questions authors actually ask, answered plainly.</p>
+        </div>
+        <div class="faq-grid">
+          <details class="faq-item" open>
+            <summary class="faq-q">Where is my writing actually stored?</summary>
+            <p class="faq-a">Inside your browser — IndexedDB with a synchronous localStorage mirror — on your own device. Nothing is uploaded anywhere, and no account exists to leak. The optional local Python server instead keeps everything in a plain SQLite <code>.db</code> file you can back up like any other file.</p>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">What does “append-only” mean for the audit trail?</summary>
+            <p class="faq-a">Entries are written once and never modified or deleted. Reclassifying a chapter adds a new entry rather than changing the old one; deleting a chapter or an entire book leaves the record that it existed. That's what makes it an honest paper trail instead of a mood board.</p>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">Is AuthorLedger an AI detector?</summary>
+            <p class="faq-a">No — and it deliberately refuses to pretend to be one. The Writing Pattern Report shows plain statistics (sentence rhythm, word variety, repeated phrases) to help you remember how a chapter was written. It never outputs a probability or a verdict. Only you can classify your work honestly.</p>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">Do I need to disclose AI-assisted editing?</summary>
+            <p class="faq-a">Amazon KDP's policy requires disclosing AI-generated text, images, or translations; ordinary AI-assisted work like brainstorming or grammar-checking your own writing does not currently require disclosure. Policies change, and Amazon reviews back-catalogues too — always check KDP's current guidelines. AuthorLedger keeps the record either way, so you can answer confidently.</p>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">Can I take my work with me?</summary>
+            <p class="faq-a">Always. Export your compiled book as Markdown, plain text, or print-ready HTML; download individual chapters as <code>.md</code>; and export or restore complete JSON backups of the whole workspace. There is no lock-in and no proprietary format — your words are yours.</p>
+          </details>
+          <details class="faq-item">
+            <summary class="faq-q">Does it work offline?</summary>
+            <p class="faq-a">Yes. Once the page has loaded, writing, autosave, pattern reports, craft checks, compliance reports, snapshots, and exports all run with the network switched off. Only the optional Claude feedback needs a connection — and your own API key.</p>
+          </details>
+        </div>
+      </section>
+
+      <footer class="desk-footer">
+        <p class="footer-note"><strong>Disclaimer:</strong> AuthorLedger is not legal advice and has no relationship with Amazon or KDP. It generates records and suggestions based entirely on what <em>you</em> tell it. Always check Amazon KDP's current content guidelines before publishing.</p>
+        <p class="footer-note">Built by Saurav Kushwaha — a published author of 90+ books and a Computer Science (AI &amp; ML) student, building the tools he'd actually use. Open source under the MIT license.</p>
+      </footer>
     </div>
 
     <!-- Book Overview Desk -->
     <div class="book-view" id="book-view" hidden>
       <div class="book-view-header">
+        <div class="book-cover-lg cover-tone-0" id="book-cover" aria-hidden="true">
+          <span class="book-cover-mark">§</span>
+          <span class="book-cover-initials" id="book-cover-initials">BK</span>
+        </div>
         <div class="book-title-group">
+          <p class="book-view-eyebrow">MANUSCRIPT</p>
           <h2 id="book-title"></h2>
           <p id="book-byline" class="book-byline" hidden></p>
           <p id="book-note-display" class="book-note-display" hidden></p>
+          <div class="book-meta-chips">
+            <span class="meta-chip"><strong id="book-stat-chapters">0</strong> chapters</span>
+            <span class="meta-chip"><strong id="book-stat-words">0</strong> words</span>
+            <span class="meta-chip"><strong id="book-stat-avg">0</strong> avg / chapter</span>
+            <span class="meta-chip"><strong id="book-stat-readtime">0m</strong> read</span>
+            <span class="meta-chip">touched <strong id="book-stat-updated">—</strong></span>
+          </div>
         </div>
         <div class="book-actions">
           <button type="button" id="quick-write-btn" class="btn btn-primary">+ Write chapter</button>
