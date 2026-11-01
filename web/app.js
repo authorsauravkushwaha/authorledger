@@ -340,6 +340,239 @@
     }
   }
 
+  // ----------------------------------------------- Covers & Dashboard --
+
+  const COVER_TONE_COUNT = 8;
+
+  function coverToneFor(title) {
+    const s = String(title || "");
+    let hash = 0;
+    for (let i = 0; i < s.length; i += 1) {
+      hash = (hash * 31 + s.charCodeAt(i)) % 100000;
+    }
+    return hash % COVER_TONE_COUNT;
+  }
+
+  function initialsFor(title) {
+    const words = String(title || "")
+      .replace(/[^a-z0-9 ]/gi, " ")
+      .split(/\s+/)
+      .filter(Boolean)
+      .filter((w) => !/^(the|a|an|of|and)$/i.test(w));
+    if (!words.length) return "§";
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+
+  function dayKey(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  function renderDashShelf(books) {
+    const grid = document.getElementById("dash-shelf");
+    const empty = document.getElementById("dash-shelf-empty");
+    grid.innerHTML = "";
+    if (!books.length) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+
+    for (const book of books) {
+      const card = document.createElement("article");
+      card.className = "dash-book-card";
+      card.tabIndex = 0;
+
+      const cover = document.createElement("div");
+      cover.className = `dash-book-cover cover-tone-${coverToneFor(book.title)}`;
+      const mark = document.createElement("span");
+      mark.className = "dash-book-mark";
+      mark.textContent = "§";
+      const initials = document.createElement("span");
+      initials.className = "dash-book-initials";
+      initials.textContent = initialsFor(book.title);
+      cover.appendChild(mark);
+      cover.appendChild(initials);
+
+      const body = document.createElement("div");
+      body.className = "dash-book-body";
+      const title = document.createElement("h4");
+      title.className = "dash-book-title";
+      title.textContent = book.title;
+      body.appendChild(title);
+
+      if (book.author_name) {
+        const byline = document.createElement("p");
+        byline.className = "dash-book-byline";
+        byline.textContent = `by ${book.author_name}`;
+        body.appendChild(byline);
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "dash-book-meta";
+      const chCount = book.chapter_count ?? 0;
+      const wCount = book.word_count ?? 0;
+      meta.textContent = `${chCount} ch · ${wCount.toLocaleString()} words · ~${Engine.estimateReadingMinutes(wCount)}m read`;
+      body.appendChild(meta);
+
+      const goal = Number(book.word_goal) || 0;
+      if (goal > 0) {
+        const progress = document.createElement("progress");
+        progress.className = "dash-book-progress";
+        progress.max = goal;
+        progress.value = Math.min(goal, wCount);
+        const pct = Math.min(100, Math.round((wCount / goal) * 100));
+        progress.title = `${pct}% of goal`;
+        body.appendChild(progress);
+        const goalLine = document.createElement("div");
+        goalLine.className = "dash-book-goal";
+        goalLine.textContent = `${pct}% of ${goal.toLocaleString()}w goal`;
+        body.appendChild(goalLine);
+      }
+
+      card.appendChild(cover);
+      card.appendChild(body);
+      card.addEventListener("click", async () => {
+        await flushPendingAutosave();
+        openBook(book.id);
+      });
+      card.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          openBook(book.id);
+        }
+      });
+      grid.appendChild(card);
+    }
+  }
+
+  function renderHeatmap(auditEntries) {
+    const map = new Map();
+    for (const entry of auditEntries || []) {
+      if (!entry.timestamp) continue;
+      const key = dayKey(new Date(entry.timestamp));
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+
+    const container = document.getElementById("dash-heatmap");
+    container.innerHTML = "";
+
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(start.getDate() - 181);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - start.getDay()); // align to Sunday
+
+    const end = new Date(today);
+    end.setHours(0, 0, 0, 0);
+    end.setDate(end.getDate() + (6 - end.getDay())); // complete the week
+
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const key = dayKey(d);
+      const count = map.get(key) || 0;
+      let level = 0;
+      if (count >= 7) level = 4;
+      else if (count >= 4) level = 3;
+      else if (count >= 2) level = 2;
+      else if (count >= 1) level = 1;
+
+      const cell = document.createElement("span");
+      cell.className = `heat-cell heat-${level}`;
+      const label = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      cell.title = `${label} · ${count} ledger event${count === 1 ? "" : "s"}`;
+      container.appendChild(cell);
+    }
+  }
+
+  function renderDashFeed(auditEntries) {
+    const feed = document.getElementById("dash-activity-feed");
+    const empty = document.getElementById("dash-feed-empty");
+    feed.innerHTML = "";
+
+    const recent = (auditEntries || []).slice().reverse().slice(0, 6);
+    if (!recent.length) {
+      empty.hidden = false;
+      return;
+    }
+    empty.hidden = true;
+
+    for (const entry of recent) {
+      const li = document.createElement("li");
+      li.className = "feed-item";
+
+      const time = document.createElement("span");
+      time.className = "feed-time";
+      time.textContent = formatTimestamp(entry.timestamp).replace(/,\s*\d{4}/, "");
+
+      const event = document.createElement("span");
+      event.className = "feed-event";
+      const strong = document.createElement("strong");
+      strong.textContent = entry.event_type || "ledger_event";
+      event.appendChild(strong);
+      const wcSuffix =
+        entry.word_count !== null && entry.word_count !== undefined
+          ? ` (${Number(entry.word_count).toLocaleString()}w)`
+          : "";
+      const where = entry.chapter_title
+        ? ` · ${entry.chapter_title}${wcSuffix}`
+        : entry.book_title
+          ? ` · ${entry.book_title}`
+          : "";
+      event.appendChild(document.createTextNode(`${where}${entry.detail ? " — " + entry.detail : ""}`));
+
+      li.appendChild(time);
+      li.appendChild(event);
+      feed.appendChild(li);
+    }
+  }
+
+  async function renderDashboard() {
+    try {
+      const books = state.books || [];
+      const totalChapters = books.reduce((sum, b) => sum + (b.chapter_count || 0), 0);
+      const totalWords = books.reduce((sum, b) => sum + (b.word_count || 0), 0);
+
+      document.getElementById("dash-stat-books").textContent = String(books.length);
+      document.getElementById("dash-stat-chapters").textContent = totalChapters.toLocaleString();
+      document.getElementById("dash-stat-words").textContent = totalWords.toLocaleString();
+      document.getElementById("dash-stat-readtime").textContent =
+        totalWords > 0 ? `~${Engine.estimateReadingMinutes(totalWords)}m` : "0m";
+
+      let audit = [];
+      try {
+        audit = await Data.getGlobalAuditLog();
+      } catch {
+        audit = [];
+      }
+      document.getElementById("dash-stat-ledger").textContent = (audit.length || 0).toLocaleString();
+
+      renderDashShelf(books);
+      renderHeatmap(audit);
+      renderDashFeed(audit);
+    } catch {
+      // The dashboard is decoration on top of the studio — never let it break the app.
+    }
+  }
+
+  async function goStudioHome(scrollTargetId) {
+    exitFocusMode();
+    await flushPendingAutosave();
+    hide("chapter-view");
+    hide("book-view");
+    hide("book-edit-panel");
+    show("empty-desk");
+    await renderDashboard();
+    if (scrollTargetId) {
+      const target = document.getElementById(scrollTargetId);
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   // ------------------------------------------------------- Book Shelf --
 
   async function refreshBookList() {
@@ -357,6 +590,13 @@
       li.dataset.bookId = book.id;
       if (book.id === state.activeBookId) li.classList.add("active");
 
+      const cover = document.createElement("span");
+      cover.className = `book-item-cover cover-tone-${coverToneFor(book.title)}`;
+      cover.textContent = initialsFor(book.title);
+
+      const main = document.createElement("div");
+      main.className = "book-item-main";
+
       const titleSpan = document.createElement("span");
       titleSpan.className = "book-item-title";
       titleSpan.textContent = book.title;
@@ -367,19 +607,68 @@
       const wCount = book.word_count ?? 0;
       metaSpan.textContent = `${chCount} ch · ${wCount.toLocaleString()} words`;
 
-      li.appendChild(titleSpan);
-      li.appendChild(metaSpan);
+      main.appendChild(titleSpan);
+      main.appendChild(metaSpan);
+
+      const goal = Number(book.word_goal) || 0;
+      if (goal > 0) {
+        const progress = document.createElement("progress");
+        progress.className = "book-item-progress";
+        progress.max = goal;
+        progress.value = Math.min(goal, wCount);
+        const pct = Math.min(100, Math.round((wCount / goal) * 100));
+        progress.title = `${pct}% of goal`;
+        main.appendChild(progress);
+      }
+
+      li.appendChild(cover);
+      li.appendChild(main);
       li.addEventListener("click", async () => {
         await flushPendingAutosave();
         openBook(book.id);
       });
       list.appendChild(li);
     }
+
+    await renderDashboard();
   }
 
   // ----------------------------------------------------- Event Wiring --
 
   function wireStaticEvents() {
+    // Top navigation (studio home / write / ledger / reports / guide)
+    document.getElementById("nav-home-btn").addEventListener("click", () => goStudioHome());
+    document.getElementById("nav-write-btn").addEventListener("click", async () => {
+      if (state.activeBookId) {
+        exitFocusMode();
+        await flushPendingAutosave();
+        await openBook(state.activeBookId);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else if (state.books.length > 0) {
+        await flushPendingAutosave();
+        await openBook(state.books[0].id);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        document.getElementById("new-book-title").focus();
+      }
+    });
+    document.getElementById("nav-ledger-btn").addEventListener("click", openGlobalAuditModal);
+    document.getElementById("nav-reports-btn").addEventListener("click", async () => {
+      if (state.activeBookId) {
+        await openReportModal();
+      } else if (state.books.length > 0) {
+        await flushPendingAutosave();
+        await openBook(state.books[0].id);
+        await openReportModal();
+      } else {
+        document.getElementById("report-body").innerHTML =
+          '<p class="muted-note">Create or open a book first — the compliance report is generated per manuscript from its chapter stamps.</p>';
+        show("report-modal");
+      }
+    });
+    document.getElementById("nav-guide-btn").addEventListener("click", () => goStudioHome("feature-tour"));
+    document.getElementById("dash-ledger-btn").addEventListener("click", openGlobalAuditModal);
+
     // New book creation
     document.getElementById("new-book-form").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -834,6 +1123,23 @@
     } else {
       noteEl.hidden = true;
     }
+
+    // Generated cover + live manuscript stats
+    const coverEl = document.getElementById("book-cover");
+    coverEl.className = `book-cover-lg cover-tone-${coverToneFor(book.title)}`;
+    document.getElementById("book-cover-initials").textContent = initialsFor(book.title);
+
+    const chapters = book.chapters || [];
+    const totalWords = chapters.reduce((sum, ch) => sum + Engine.countWords(ch.text), 0);
+    const chCount = chapters.length;
+    document.getElementById("book-stat-chapters").textContent = String(chCount);
+    document.getElementById("book-stat-words").textContent = totalWords.toLocaleString();
+    document.getElementById("book-stat-avg").textContent =
+      chCount ? Math.round(totalWords / chCount).toLocaleString() : "0";
+    document.getElementById("book-stat-readtime").textContent =
+      `~${Engine.estimateReadingMinutes(totalWords)}m`;
+    document.getElementById("book-stat-updated").textContent =
+      book.updated_at ? formatTimestamp(book.updated_at).split(",")[0] : "—";
 
     renderGoalStrip(book, book.chapters);
     renderTallyStrip(book.chapters);

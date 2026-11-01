@@ -21,6 +21,7 @@ AuthorLedger gives you a calm, distraction-free **writing studio and compliance 
 
 ## What you can do right on the website
 
+- **Open on a full studio dashboard.** Live workspace statistics (books, chapters, words written, reading time, ledger entries), a 26-week writing-activity heatmap, your shelf with generated covers and word-goal progress, a recent-activity feed from your own ledger, a complete feature tour, and a plain-language FAQ — the whole studio explained at a glance.
 - **Write and save directly in your browser.** Create books and chapters, set word-count goals, write in **Focus Mode** with customizable typography (`Serif`, `Sans`, `Mono`) and paper themes (`Ledger`, `Parchment`, `Night Ink`), use Find & Replace, reorder chapters, and save named **version snapshots** before rewrites. Everything saves automatically to your browser (`IndexedDB` + synchronous `localStorage` mirror) with zero account or server required.
 - **Own your manuscript & backups.** Download your compiled book anytime as **Markdown (`.md`)**, **Plain Text (`.txt`)**, or **Print-ready Typeset HTML / PDF (`.html`)**. Import existing `.md` or `.txt` manuscripts (automatically split into chapters) and export/restore full `.json` workspace backups across devices.
 - **Log every chapter honestly.** Stamp each chapter **Human-written**, **AI-assisted**, or **AI-generated**, with an optional note about which tool and what it helped with.
