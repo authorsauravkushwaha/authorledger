@@ -690,33 +690,6 @@ code {
   justify-content: center;
 }
 
-.hero-cover-stack {
-  position: relative;
-  width: 172px;
-  height: 236px;
-  flex-shrink: 0;
-}
-
-.hero-cover {
-  position: absolute;
-  inset: 0;
-  border-radius: 10px;
-  border: 1px solid rgba(0, 0, 0, 0.22);
-  box-shadow: var(--shadow-lift);
-}
-
-.hero-cover-back {
-  transform: rotate(-7deg) translate(-10px, 4px);
-  filter: saturate(0.85);
-}
-
-.hero-cover-front {
-  display: flex;
-  align-items: stretch;
-  justify-content: stretch;
-  padding: 8px;
-}
-
 .hero-cover-frame {
   flex: 1;
   display: flex;
@@ -2371,4 +2344,418 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
+}
+
+/* =====================================================================
+   3D DEPTH LAYER
+   Pure CSS 3D transforms + a tiny dependency-free script (depth.js).
+   No WebGL, no libraries, no inline styles -- CSP stays strict, the site
+   stays zero-dependency and offline-first. Everything degrades to the
+   flat design when transforms/JS/motion are unavailable or disabled.
+   ===================================================================== */
+
+/* ---------- reusable CSS-3D book (cuboid made of six faces) ---------- */
+
+.book3d {
+  --bw: 62px;
+  --bh: 90px;
+  --bd: 14px;
+  --b-rx: 0deg;
+  --b-ry: -32deg;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--bw);
+  height: var(--bh);
+  margin: calc(var(--bh) / -2) 0 0 calc(var(--bw) / -2);
+  transform-style: preserve-3d;
+  transform: rotateX(var(--b-rx)) rotateY(var(--b-ry));
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.b3-face {
+  position: absolute;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+}
+
+.b3-front,
+.b3-back {
+  left: 0;
+  top: 0;
+  width: var(--bw);
+  height: var(--bh);
+  border: 1px solid rgba(0, 0, 0, 0.28);
+}
+
+.b3-front {
+  transform: translateZ(calc(var(--bd) / 2));
+  border-radius: 2px 7px 7px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  color: rgba(255, 255, 255, 0.95);
+  font-family: var(--font-display);
+  text-align: center;
+}
+
+/* hinge groove + glossy sheen on the front cover */
+.b3-front::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 9%;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.32), rgba(255, 255, 255, 0.1) 55%, rgba(0, 0, 0, 0.12));
+  pointer-events: none;
+}
+
+.b3-front::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0) 38%, rgba(0, 0, 0, 0.18) 100%);
+  pointer-events: none;
+}
+
+.b3-back {
+  transform: rotateY(180deg) translateZ(calc(var(--bd) / 2));
+  border-radius: 7px 2px 2px 7px;
+}
+
+.b3-back::after,
+.b3-spine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.b3-spine {
+  left: calc((var(--bw) - var(--bd)) / 2);
+  top: 0;
+  width: var(--bd);
+  height: var(--bh);
+  transform: rotateY(-90deg) translateZ(calc(var(--bw) / 2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+/* gilded bands across the spine */
+.b3-spine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, transparent 0 9%, rgba(224, 190, 110, 0.85) 9% 10.5%, transparent 10.5% 89.5%, rgba(224, 190, 110, 0.85) 89.5% 91%, transparent 91%);
+  pointer-events: none;
+}
+
+.b3-spine-title {
+  position: relative;
+  z-index: 2;
+  display: none;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: rgba(246, 226, 168, 0.95);
+  white-space: nowrap;
+}
+
+.b3-pages {
+  left: calc((var(--bw) - var(--bd)) / 2);
+  top: 3px;
+  width: var(--bd);
+  height: calc(var(--bh) - 6px);
+  transform: rotateY(90deg) translateZ(calc(var(--bw) / 2 - 2px));
+  background: repeating-linear-gradient(90deg, #fbf6e8 0 1px, #e4dbc4 1px 2px);
+}
+
+.b3-top,
+.b3-bottom {
+  left: 3px;
+  width: calc(var(--bw) - 5px);
+  top: calc((var(--bh) - var(--bd)) / 2);
+  height: var(--bd);
+  background: repeating-linear-gradient(0deg, #fbf6e8 0 1px, #dcd2b8 1px 2px);
+}
+
+.b3-top { transform: rotateX(90deg) translateZ(calc(var(--bh) / 2 - 2px)); }
+.b3-bottom { transform: rotateX(-90deg) translateZ(calc(var(--bh) / 2 - 2px)); filter: brightness(0.78); }
+.b3-top { filter: brightness(1.04); }
+
+/* ---------- hero scene ---------- */
+
+.scene3d {
+  position: relative;
+  width: 200px;
+  height: 288px;
+  flex-shrink: 0;
+  perspective: 1100px;
+  perspective-origin: 50% 42%;
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.scene3d.is-dragging { cursor: grabbing; }
+
+.scene3d-floor {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 210px;
+  height: 46px;
+  margin-left: -105px;
+  background: radial-gradient(ellipse at center, rgba(20, 30, 24, 0.42) 0%, rgba(20, 30, 24, 0.14) 48%, transparent 72%);
+  filter: blur(5px);
+  animation: scene3d-shadow 6s ease-in-out infinite;
+}
+
+.scene3d-float {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: scene3d-bob 6s ease-in-out infinite;
+}
+
+.scene3d-rig {
+  --rig-rx: 6deg;
+  --rig-ry: -28deg;
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--rig-rx)) rotateY(var(--rig-ry));
+}
+
+.book3d-hero-front,
+.book3d-hero-back {
+  --bw: 164px;
+  --bh: 226px;
+  --bd: 44px;
+  --b-ry: 0deg;
+  transition: none;
+}
+
+.book3d-hero-front { translate: 16px 0 34px; }
+.book3d-hero-back {
+  translate: -34px 12px -66px;
+  rotate: z -5deg;
+  --b-ry: 14deg;
+  filter: saturate(0.85);
+}
+
+.book3d-hero-front .b3-spine-title,
+.book3d-hero-back .b3-spine-title { display: block; }
+
+.book3d-hero-front .b3-front,
+.book3d-hero-back .b3-front,
+.book3d-hero-front .b3-back,
+.book3d-hero-back .b3-back { border-radius: 3px 10px 10px 3px; }
+.book3d-hero-front .b3-front { padding: 8px; align-items: stretch; justify-content: stretch; }
+.book3d-hero-back .b3-front { opacity: 1; }
+
+/* floating "stamp" chips hover in front of the book */
+.scene3d-chip {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 0.3em 0.7em;
+  border-radius: 4px;
+  border: 1.5px solid currentColor;
+  background: var(--paper-sheet);
+  box-shadow: 0 10px 18px rgba(20, 30, 24, 0.28);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.scene3d-chip-human { color: var(--stamp-green); translate: 6px -112px 96px; rotate: z -7deg; }
+.scene3d-chip-assisted { color: var(--stamp-amber); translate: -78px 78px 112px; rotate: z 5deg; }
+
+@keyframes scene3d-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+
+@keyframes scene3d-shadow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.9); }
+}
+
+/* ---------- shelf cards: standing 3D books ---------- */
+
+.dash-book-cover {
+  position: relative;
+  perspective: 480px;
+  min-height: 112px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.dash-book-cover .book3d {
+  --bw: 62px;
+  --bh: 92px;
+  --bd: 16px;
+  --b-ry: -34deg;
+  --b-rx: 4deg;
+  filter: drop-shadow(5px 9px 7px rgba(20, 30, 24, 0.28));
+}
+
+.dash-book-card:hover .dash-book-cover .book3d,
+.dash-book-card:focus-visible .dash-book-cover .book3d {
+  --b-ry: -12deg;
+  --b-rx: 0deg;
+  translate: 0 -3px 14px;
+}
+
+.dash-book-cover .b3-front { padding: 0.3rem; }
+.dash-book-cover .dash-book-initials { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.05em; position: relative; z-index: 1; }
+.dash-book-cover .dash-book-mark { font-size: 0.8rem; opacity: 0.85; position: relative; z-index: 1; }
+
+/* ---------- manuscript header cover: leaning 3D book ---------- */
+
+.book-view-header { perspective: 700px; }
+
+.book-cover-lg {
+  position: relative;
+  transform-origin: 0% 50%;
+  transform: rotateY(-18deg) rotateX(2deg);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+  border-radius: 3px 9px 9px 3px;
+  box-shadow: 10px 14px 22px rgba(20, 30, 24, 0.3), 3px 0 0 -1px #efe8d4, 5px 0 0 -1px #d6ccb2, 7px 0 0 -1px #efe8d4;
+}
+
+.book-cover-lg::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 9%;
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.34), rgba(255, 255, 255, 0.1) 55%, rgba(0, 0, 0, 0.1));
+  border-radius: 3px 0 0 3px;
+}
+
+.book-cover-lg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 40%, rgba(0, 0, 0, 0.16));
+  pointer-events: none;
+}
+
+.book-view-header:hover .book-cover-lg { transform: rotateY(-6deg) rotateX(0deg); }
+
+/* ---------- pointer tilt + glare on cards ---------- */
+
+.hero-visual,
+.dash-stats,
+.feature-grid,
+.principles-grid { perspective: 1200px; }
+
+.dash-stat-card,
+.dash-stat-card:hover,
+.feature-card,
+.feature-card:hover,
+.principle-card,
+.principle-card:hover,
+.hero-report-card {
+  position: relative;
+  transform-style: preserve-3d;
+  transform: perspective(900px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(var(--lift, 0px));
+  transition: transform 0.18s ease-out, box-shadow 0.18s ease, border-color 0.18s ease;
+  will-change: transform;
+}
+
+.dash-stat-card:hover { --lift: -2px; }
+.feature-card:hover,
+.principle-card:hover { --lift: -3px; }
+
+.dash-stat-card.is-tilting,
+.feature-card.is-tilting,
+.principle-card.is-tilting,
+.hero-report-card.is-tilting {
+  transition: transform 0.06s linear, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 22px 36px rgba(30, 43, 34, 0.2), 0 4px 8px rgba(30, 43, 34, 0.08);
+}
+
+.dash-stat-card::after,
+.feature-card::after,
+.principle-card::after,
+.hero-report-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 0%), rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 55%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.is-tilting::after { opacity: 1; }
+
+/* content floats above the card plane while tilting */
+.feature-icon,
+.principle-num,
+.dash-stat-value,
+.hero-report-rows { transition: transform 0.2s ease-out; }
+.is-tilting .feature-icon,
+.is-tilting .principle-num { transform: translateZ(30px); }
+.is-tilting .dash-stat-value { transform: translateZ(22px); }
+.is-tilting .hero-report-rows { transform: translateZ(14px); }
+
+/* ---------- scroll reveal (3D flip-up) ---------- */
+
+.depth-js .reveal-3d {
+  opacity: 0;
+  translate: 0 26px;
+  rotate: x 16deg;
+  transition: opacity 0.6s ease, translate 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), rotate 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition-delay: calc(var(--reveal-i, 0) * 60ms);
+}
+
+.depth-js .reveal-3d.is-in {
+  opacity: 1;
+  translate: 0 0;
+  rotate: x 0deg;
+}
+
+@keyframes shelf-pop {
+  from { opacity: 0; translate: 0 18px; rotate: x 14deg; }
+  to { opacity: 1; translate: 0 0; rotate: x 0deg; }
+}
+
+.dash-shelf { perspective: 1000px; }
+.dash-book-card { animation: shelf-pop 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@media (max-width: 700px) {
+  .scene3d { width: 200px; height: 262px; }
+  .book3d-hero-front,
+  .book3d-hero-back { --bw: 146px; --bh: 202px; --bd: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene3d-float,
+  .scene3d-floor,
+  .dash-book-card { animation: none !important; }
+  .depth-js .reveal-3d { opacity: 1; translate: none; rotate: none; transition: none; }
 }
