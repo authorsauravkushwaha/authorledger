@@ -1,4 +1,4 @@
-name: Publish portfolio to GitHub Pages
+name: Publish AuthorLedger Studio to GitHub Pages
 
 on:
   push:
@@ -23,10 +23,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
-      - name: Prepare portfolio site
+      - name: Prepare AuthorLedger web studio
         run: |
           mkdir -p _site
-          cp index.html portfolio.css portfolio.js _site/
+          cp -r web/. _site/
+          touch _site/.nojekyll
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
