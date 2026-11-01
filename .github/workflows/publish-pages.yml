@@ -3,7 +3,7 @@ name: Publish portfolio to GitHub Pages
 on:
   push:
     branches:
-      - arena/b329fa7e-authorledger
+      - main
   workflow_dispatch:
 
 permissions:
